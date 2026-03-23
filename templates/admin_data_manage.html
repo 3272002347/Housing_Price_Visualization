@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据管理 - 后台管理</title>
+    <style>
+        /* 全局基础样式（复用用户管理） */
+        * {margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft Yahei", "PingFang SC", sans-serif;}
+        body {background-color: #f5f7fa;padding:20px;}
+        .header {background:#fff;padding:15px 30px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:30px;display:flex;justify-content:space-between;align-items:center;}
+        .header h1 {font-size:18px;color:#165DFF;font-weight:600;}
+        .back-btn {color:#165DFF;text-decoration:none;padding:6px 12px;border:1px solid #e6f7ff;border-radius:4px;font-size:14px;}
+        .back-btn:hover {background:#e6f7ff;}
+
+        /* 数据操作区样式 */
+        .content {background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+        .data-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f9fafc;
+            border-radius: 8px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+        .action-left {display: flex;gap: 10px;}
+        .action-right {display: flex;gap: 10px;}
+        .upload-btn, .export-btn, .template-btn, .filter-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .upload-btn {background: #165DFF;color: #fff;}
+        .export-btn {background: #00b42a;color: #fff;}
+        .template-btn {background: #722ed1;color: #fff;}
+        .filter-btn {background: #4894ff;color: #fff;}
+        .upload-btn:hover {background: #0d47a1;}
+        .export-btn:hover {background: #009a22;}
+        .template-btn:hover {background: #6225c0;}
+        .filter-btn:hover {background: #3685e6;}
+
+        /* 筛选区样式 */
+        .data-filter {display: flex;align-items: center;gap: 10px;flex-wrap: wrap;}
+        .data-filter input, .data-filter select {
+            height: 36px;
+            padding: 0 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            font-size: 14px;
+            min-width: 150px;
+        }
+        .data-filter input:focus, .data-filter select:focus {
+            border-color: #165DFF;
+            outline: none;
+        }
+        .reset-btn {
+            padding: 8px 16px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        /* 数据表格样式 */
+        .data-table {width: 100%;border-collapse: collapse;margin-bottom: 20px;}
+        .data-table th, .data-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #f2f3f5;
+            font-size: 14px;
+        }
+        .data-table th {
+            background: #f9fafc;
+            color: #4e5969;
+            font-weight: 600;
+            cursor: pointer;
+            position: relative;
+        }
+        .data-table th:hover {color: #165DFF;}
+        .sort-icon {margin-left: 5px;font-size: 12px;color: #86909c;}
+        .data-table td {color: #1d2129;}
+        .data-table tr:hover {background: #f9fafc;}
+
+        /* 操作按钮样式 */
+        .action-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 5px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .edit-btn {background: #165DFF;}
+        .delete-btn {background: #f53f3f;}
+        .edit-btn:hover {background: #0d47a1;}
+        .delete-btn:hover {background: #d93636;}
+
+        /* 分页样式 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .pagination button {
+            padding: 6px 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .pagination button:disabled {
+            background: #f2f3f5;
+            color: #c9cdd4;
+            cursor: not-allowed;
+        }
+        .pagination .active {
+            background: #165DFF;
+            color: #fff;
+            border-color: #165DFF;
+        }
+        .pagination-info {
+            margin: 0 10px;
+            color: #86909c;
+            font-size: 14px;
+        }
+
+        /* 弹窗通用样式 */
+        .modal-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            display: none;
+        }
+        .modal-box {
+            background: #fff;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f2f3f5;
+        }
+        .modal-header h3 {
+            font-size: 16px;
+            color: #1d2129;
+            font-weight: 600;
+        }
+        .modal-close {
+            font-size: 20px;
+            color: #86909c;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #4e5969;
+            margin-bottom: 8px;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-group input:focus, .form-group select:focus {
+            border-color: #165DFF;
+            outline: none;
+        }
+        .form-group .required {color: red;}
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-cancel {
+            padding: 8px 16px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-save, .modal-upload {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #165DFF;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-save:hover, .modal-upload:hover {background: #0d47a1;}
+
+        /* 删除弹窗样式 */
+        .delete-modal-box {
+            max-width: 350px;
+            text-align: center;
+        }
+        .delete-modal-body {
+            margin: 20px 0;
+            color: #4e5969;
+            font-size: 14px;
+        }
+        .delete-confirm {
+            background: #f53f3f;
+        }
+        .delete-confirm:hover {background: #d93636;}
+
+        /* 错误/成功提示 */
+        .error-msg, .success-msg {
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            display: none;
+        }
+        .error-msg {background: #fef0f0;color: #f53f3f;border: 1px solid #fde2e2;}
+        .success-msg {background: #f0f9ff;color: #165DFF;border: 1px solid #e6f7ff;}
+
+        /* 全局Toast提示 */
+        .global-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 10000;
+            display: none;
+        }
+        .toast-success {background: #00b42a;}
+        .toast-error {background: #f53f3f;}
+
+        /* 上传文件样式 */
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        .file-input {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+        }
+        .file-text {
+            display: block;
+            width: 100%;
+            height: 40px;
+            line-height: 40px;
+            padding: 0 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #86909c;
+            background: #fff;
+        }
+
+        /* 空数据提示 */
+        .empty-data {
+            text-align: center;
+            padding: 50px 0;
+            color: #86909c;
+            font-size: 14px;
+        }
+        .page-btn {
+    padding: 5px 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    color: #333;
+}
+.page-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+.page-btn.disabled {
+    color: #ccc;
+    cursor: not-allowed;
+}
+.pagination {
+    max-width: 100%;
+    overflow-x: auto; /* 允许横向滚动，避免溢出 */
+}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>数据管理</h1>
+        <a href="{% url 'admin_index' %}" class="back-btn">返回后台首页</a>
+    </div>
+
+    <div class="content">
+        <!-- 数据操作区 -->
+        <div class="data-actions">
+            <div class="action-left">
+                <button class="upload-btn" id="uploadBtn">批量导入数据（Excel）</button>
+                <button class="template-btn" id="templateBtn">下载Excel模板</button>
+                <button class="export-btn" id="exportBtn">导出数据（Excel）</button>
+            </div>
+            <div class="data-filter">
+                <input type="text" id="searchKeyword" placeholder="搜索标题/小区" value="{{keyword}}">
+                <select id="cityFilter">
+                    <option value="">全部城市</option>
+                    {% for city in city_list %}
+                    <option value="{{ city }}" {% if city == city %}selected{% endif %}>{{ city }}</option>
+                    {% endfor %}
+                </select>
+                <select id="decorateFilter">
+                    <option value="">全部装修类型</option>
+                    <option value="精装" {% if decoration == '精装' %}selected{% endif %}>精装</option>
+                    <option value="简装" {% if decoration == '简装' %}selected{% endif %}>简装</option>
+                    <option value="毛坯" {% if decoration == '毛坯' %}selected{% endif %}>毛坯</option>
+                </select>
+                <button class="filter-btn" id="filterBtn">筛选</button>
+                <button class="reset-btn" id="resetBtn">重置</button>
+            </div>
+        </div>
+        <!-- 数据表格 -->
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>城市</th>
+                    <th>房源标题</th>
+                    <th>小区名称</th>
+                    <th>户型</th>
+                    <th>面积(㎡) <span class="sort-icon">↑↓</span></th>
+                    <th>朝向</th>
+                    <th>装修情况</th>
+                    <th>楼层信息</th>
+                    <th>房龄<span class="sort-icon">↑↓</span></th>
+                    <th>建筑结构</th>
+                    <th>单价(元/㎡) <span class="sort-icon">↑↓</span></th>
+                    <th>总价(万元)<span class="sort-icon">↑↓</span></th>
+                    <th>录入时间<span class="sort-icon">↑↓</span></th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="dataTableBody">
+                {% for data in house_data_list %}
+        <tr>
+            <td>{{ data.id }}</td>
+            <td>{{ data.city }}</td>
+            <td>{{ data.title }}</td>
+            <td>{{ data.area }}</td>
+            <td>{{ data.house_type }}</td>
+            <td>{{ data.area_size }}㎡</td>
+            <td>{{ data.orientation }}</td>
+            <td>{{ data.decoration }}</td>
+            <td>{{ data.floor_info }}</td>
+            <td>{{ data.house_age }}</td>
+            <td>{{ data.structure_type }}</td>
+
+            <td>
+                {{ data.unit_price }} 元/㎡
+            </td>
+            <td>{{ data.total_price }}万元</td>
+            <td>{{ data.create_time|date:"Y-m-d"|default:"未填写" }}</td>
+            <td>
+                <!-- 编辑按钮：传递数据库字段值 -->
+                <button class="action-btn edit-btn"
+                        data-id="{{ data.id }}"
+                        data-city="{{ data.city }}"
+                        data-title="{{ data.title }}"
+                        data-area="{{ data.area }}"
+                        data-house-type="{{ data.house_type }}"
+                        data-area-size="{{ data.area_size }}"
+                        data-orientation="{{ data.orientation }}"
+                        data-decoration="{{ data.decoration }}"
+                        data-floor_info="{{ data.floor_info }}"
+                        data-house_age="{{ data.house_age }}"
+                        data-structure_type="{{ data.structure_type|default:'' }}"
+                        data-total_price="{{ data.total_price }}"
+                        data-create-time="{{ data.create_time|date:'Y-m-d'|default:'未填写' }}">
+                    编辑
+                </button>
+                <!-- 删除按钮：传递ID和小区名称 -->
+                <button class="action-btn delete-btn"
+                        data-id="{{ data.id }}"
+                        data-title="{{ data.title }}"
+                        data-area="{{data.area}}"
+                >
+                    删除
+                </button>
+            </td>
+        </tr>
+        {% empty %}
+        <!-- 无数据提示 -->
+        <tr>
+            <td colspan="11" class="empty-data">暂无房价数据，请先导入</td>
+        </tr>
+        {% endfor %}
+            </tbody>
+        </table>
+
+        <!-- 分页控件 -->
+        <div class="pagination" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; padding: 10px; justify-content: center;">
+            <!-- 上一页 -->
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">上一页</a>
+            {% else %}
+                <span class="page-btn disabled">上一页</span>
+            {% endif %}
+
+            <!-- 页码 -->
+            {% for num in page_range %}
+                {% if num == page_obj.number %}
+                    <span class="page-btn active">{{ num }}</span>
+                {% elif num == '...' %}
+                    <span class="page-btn">...</span>
+                {% else %}
+                    <a href="?page={{ num }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            <!-- 下一页 -->
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">下一页</a>
+            {% else %}
+                <span class="page-btn disabled">下一页</span>
+            {% endif %}
+             <span class="pagination-info">共 {{ page_obj.paginator.count }} 条，每页 10 条</span>
+        </div>
+
+    </div>
+
+    <!-- 导入数据弹窗 -->
+    <div class="modal-mask" id="uploadModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>批量导入房价数据</h3>
+                <span class="modal-close" id="closeUploadModal">×</span>
+            </div>
+            <div class="error-msg" id="uploadError"></div>
+            <div class="success-msg" id="uploadSuccess"></div>
+            <form id="uploadForm">
+                {% csrf_token %}
+                <div class="form-group">
+                    <div class="form-group">
+                        <label for="province">省份 <span class="required">*</span></label>
+                        <select id="province" name="province" required>
+                            <option value="">请选择省份</option>
+                            <option value="湖南省">湖南省</option>
+                            <option value="湖北省">湖北省</option>
+                            <option value="广东省">广东省</option>
+                            <option value="浙江省">浙江省</option>
+                            <!-- 可继续添加其他省份 -->
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="city">城市 <span class="required">*</span></label>
+                        <select id="city" name="city" required disabled>
+                            <option value="">请先选择省份</option>
+                        </select>
+                    </div>
+                    <label for="excelFile">选择Excel文件 <span class="required">*</span></label>
+                    <div class="file-upload">
+                        <input type="file" id="excelFile" name="excelFile" class="file-input" accept=".xlsx,.xls">
+                        <span class="file-text" id="fileText">未选择文件</span>
+                    </div>
+                    <div style="font-size:12px;color:#86909c;margin-top:5px;">
+                        支持格式：.xlsx/.xls | 最大大小：10MB | <a href="#" style="color:#165DFF;">下载模板</a>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="modal-cancel" id="cancelUpload">取消</button>
+                    <button type="submit" class="modal-upload">开始导入</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 编辑数据弹窗 -->
+    <div class="modal-mask" id="editModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>编辑房价数据</h3>
+                <span class="modal-close" id="closeEditModal">×</span>
+            </div>
+            <div class="error-msg" id="editError"></div>
+            <form id="editForm">
+                {% csrf_token %}
+                <input type="hidden" id="editId" name="id">
+                <div class="form-group">
+                    <label for="editCity">城市 <span class="required">*</span></label>
+                    <select id="editCity" name="city" required>
+                        <option value="">请选择城市</option>
+                        <option value="北京">北京</option>
+                        <option value="上海">上海</option>
+                        <option value="广州">广州</option>
+                        <option value="深圳">深圳</option>
+                        <option value="杭州">杭州</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="editArea">区域 <span class="required">*</span></label>
+                    <input type="text" id="editArea" name="area" required placeholder="请输入区域">
+                </div>
+                <div class="form-group">
+                    <label for="editCommunity">小区名称 <span class="required">*</span></label>
+                    <input type="text" id="editCommunity" name="community" required placeholder="请输入小区名称">
+                </div>
+                <div class="form-group">
+                    <label for="editHouseType">户型 <span class="required">*</span></label>
+                    <input type="text" id="editHouseType" name="house_type" required placeholder="如：三室两厅">
+                </div>
+                <div class="form-group">
+                    <label for="editAreaSize">面积(㎡) <span class="required">*</span></label>
+                    <input type="number" id="editAreaSize" name="area_size" required placeholder="请输入面积" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="editUnitPrice">单价(元/㎡) <span class="required">*</span></label>
+                    <input type="number" id="editUnitPrice" name="unit_price" required placeholder="请输入单价" min="0">
+                </div>
+                <div class="form-group">
+                    <label for="editTotalPrice">总价(万元)</label>
+                    <input type="number" id="editTotalPrice" name="total_price" placeholder="自动计算（可选）" min="0" step="0.1">
+                </div>
+                <div class="form-group">
+                    <label for="editDecoration">装修类型 <span class="required">*</span></label>
+                    <select id="editDecoration" name="decoration" required>
+                        <option value="">请选择装修类型</option>
+                        <option value="精装">精装</option>
+                        <option value="简装">简装</option>
+                        <option value="毛坯">毛坯</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="modal-cancel" id="cancelEdit">取消</button>
+                    <button type="submit" class="modal-save">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 删除数据弹窗 -->
+    <div class="modal-mask" id="deleteModal">
+        <div class="modal-box delete-modal-box">
+            <div class="modal-header">
+                <h3>确认删除</h3>
+                <span class="modal-close" id="closeDeleteModal">×</span>
+            </div>
+            <div class="delete-modal-body">
+                确定要删除 <span id="deleteCommunity" style="color:#f53f3f;font-weight:600;"></span> 的数据吗？<br>
+                <span style="font-size:12px;color:#86909c;">删除后数据不可恢复！</span>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="modal-cancel" id="cancelDelete">取消</button>
+                <button type="button" class="modal-save delete-confirm" id="confirmDelete">确定删除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 全局Toast提示 -->
+    <div class="global-toast" id="globalToast"></div>
+
+    <script>
+        // 全局变量
+        let currentDeleteId = '';
+
+        // 显示Toast提示
+        function showToast(message, isSuccess = true) {
+            const toast = document.getElementById('globalToast');
+            toast.textContent = message;
+            toast.className = 'global-toast ' + (isSuccess ? 'toast-success' : 'toast-error');
+            toast.style.display = 'block';
+
+            setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3000);
+        }
+
+        // ==================== 导入数据弹窗逻辑 ====================
+        const uploadBtn = document.getElementById('uploadBtn');
+        const uploadModal = document.getElementById('uploadModal');
+        const closeUploadModal = document.getElementById('closeUploadModal');
+        const cancelUpload = document.getElementById('cancelUpload');
+        const excelFile = document.getElementById('excelFile');
+        const fileText = document.getElementById('fileText');
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadError = document.getElementById('uploadError');
+        const uploadSuccess = document.getElementById('uploadSuccess');
+
+        // 打开导入弹窗
+        uploadBtn.addEventListener('click', function() {
+            uploadError.style.display = 'none';
+            uploadSuccess.style.display = 'none';
+            excelFile.value = '';
+            fileText.textContent = '未选择文件';
+            provinceSelect.value = '';
+            citySelect.innerHTML = '<option value="">请先选择省份</option>';
+            citySelect.disabled = true;
+            uploadModal.style.display = 'flex';
+        });
+
+        // 关闭导入弹窗
+        function closeUploadModalFunc() {
+            uploadModal.style.display = 'none';
+        }
+        closeUploadModal.addEventListener('click', closeUploadModalFunc);
+        cancelUpload.addEventListener('click', closeUploadModalFunc);
+        uploadModal.addEventListener('click', function(e) {
+            if (e.target === uploadModal) closeUploadModalFunc();
+        });
+
+        // 选择文件后更新显示
+        excelFile.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                fileText.textContent = this.files[0].name;
+            } else {
+                fileText.textContent = '未选择文件';
+            }
+        });
+        // 省市联动数据（前端写死）
+        const provinceCityMap = {
+            "湖南省": ["长沙市", "株洲市", "湘潭市", "衡阳市", "岳阳市"],
+            "湖北省": ["武汉市", "黄石市", "襄阳市", "荆州市"],
+            "广东省": ["广州市", "深圳市", "佛山市", "东莞市"],
+            "浙江省": ["杭州市", "宁波市", "温州市", "嘉兴市"]
+            // 可继续扩展其他省份
+        };
+
+        // 获取DOM元素
+        const provinceSelect = document.getElementById('province');
+        const citySelect = document.getElementById('city');
+
+        // 监听省份变化，加载对应城市
+        provinceSelect.addEventListener('change', function() {
+            const selectedProvince = this.value;
+            // 清空城市选项
+            citySelect.innerHTML = '<option value="">请选择城市</option>';
+            citySelect.disabled = true;
+
+            if (selectedProvince && provinceCityMap[selectedProvince]) {
+                // 启用城市下拉框
+                citySelect.disabled = false;
+                // 遍历添加城市选项
+                provinceCityMap[selectedProvince].forEach(city => {
+                    const option = document.createElement('option');
+                    option.value = city;
+                    option.textContent = city;
+                    citySelect.appendChild(option);
+                });
+            }
+        });
+        // 提交导入表单
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadError.style.display = 'none';
+            uploadSuccess.style.display = 'none';
+
+            const file = excelFile.files[0];
+            if (!file) {
+                uploadError.textContent = '请选择要导入的Excel文件！';
+                uploadError.style.display = 'block';
+                return;
+            }
+
+            // 校验文件类型
+            const fileType = file.name.split('.').pop().toLowerCase();
+            if (fileType !== 'xlsx' && fileType !== 'xls') {
+                uploadError.textContent = '仅支持.xlsx/.xls格式的Excel文件！';
+                uploadError.style.display = 'block';
+                return;
+            }
+
+            // 校验文件大小（10MB）
+            if (file.size > 10 * 1024 * 1024) {
+                uploadError.textContent = '文件大小不能超过10MB！';
+                uploadError.style.display = 'block';
+                return;
+            }
+
+            // 构造FormData
+            const formData = new FormData(this);
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            loadingOverlay.style.display = 'flex';
+            // 禁用表单按钮，防止重复提交
+            document.querySelector('#uploadForm button[type="submit"]').disabled = true;
+            // AJAX提交
+            fetch("{% url 'data_upload_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    uploadSuccess.textContent = data.message;
+                    uploadSuccess.style.display = 'block';
+                    setTimeout(() => {
+                        closeUploadModalFunc();
+                        showToast(data.message);
+                        window.location.reload();
+                    }, 1500);
+                } else {
+                    uploadError.textContent = data.message;
+                    uploadError.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                uploadError.textContent = '导入失败：网络错误，请重试！';
+                uploadError.style.display = 'block';
+                console.error('Upload Error:', error);
+            })
+            .finally(() => {
+        // ✅ 无论成功失败，都隐藏加载遮罩，解锁界面
+        loadingOverlay.style.display = 'none';
+        document.querySelector('#uploadForm button[type="submit"]').disabled = false;
+         });
+        });
+
+        // ==================== 编辑数据弹窗逻辑 ====================
+        const editButtons = document.querySelectorAll('.edit-btn');
+        const editModal = document.getElementById('editModal');
+        const closeEditModal = document.getElementById('closeEditModal');
+        const cancelEdit = document.getElementById('cancelEdit');
+        const editForm = document.getElementById('editForm');
+        const editError = document.getElementById('editError');
+
+        // 打开编辑弹窗
+        editButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                editError.style.display = 'none';
+                // 填充数据
+                const id = this.getAttribute('data-id');
+                const city = this.getAttribute('data-city');
+                const area = this.getAttribute('data-area');
+                const community = this.getAttribute('data-community');
+                const houseType = this.getAttribute('data-house-type');
+                const areaSize = this.getAttribute('data-area-size');
+                const unitPrice = this.getAttribute('data-unit-price');
+                const totalPrice = this.getAttribute('data-total-price');
+                const decoration = this.getAttribute('data-decoration');
+
+                document.getElementById('editId').value = id;
+                document.getElementById('editCity').value = city;
+                document.getElementById('editArea').value = area;
+                document.getElementById('editCommunity').value = community;
+                document.getElementById('editHouseType').value = houseType;
+                document.getElementById('editAreaSize').value = areaSize;
+                document.getElementById('editUnitPrice').value = unitPrice;
+                document.getElementById('editTotalPrice').value = totalPrice;
+                document.getElementById('editDecoration').value = decoration;
+
+                editModal.style.display = 'flex';
+            });
+        });
+
+        // 关闭编辑弹窗
+        function closeEditModalFunc() {
+            editModal.style.display = 'none';
+        }
+        closeEditModal.addEventListener('click', closeEditModalFunc);
+        cancelEdit.addEventListener('click', closeEditModalFunc);
+        editModal.addEventListener('click', function(e) {
+            if (e.target === editModal) closeEditModalFunc();
+        });
+
+        // 提交编辑表单
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            editError.style.display = 'none';
+
+            // 前端校验
+            const areaSize = document.getElementById('editAreaSize').value;
+            const unitPrice = document.getElementById('editUnitPrice').value;
+            if (areaSize <= 0) {
+                editError.textContent = '面积必须大于0！';
+                editError.style.display = 'block';
+                return;
+            }
+            if (unitPrice <= 0) {
+                editError.textContent = '单价必须大于0！';
+                editError.style.display = 'block';
+                return;
+            }
+
+            // 自动计算总价（如果未填写）
+            const totalPriceInput = document.getElementById('editTotalPrice');
+            if (!totalPriceInput.value) {
+                const totalPrice = (areaSize * unitPrice / 10000).toFixed(1);
+                totalPriceInput.value = totalPrice;
+            }
+
+            // 构造FormData
+            const formData = new FormData(this);
+
+            // AJAX提交
+            fetch("{% url 'data_edit_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeEditModalFunc();
+                    showToast(data.message);
+                    window.location.reload();
+                } else {
+                    editError.textContent = data.message;
+                    editError.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                editError.textContent = '修改失败：网络错误，请重试！';
+                editError.style.display = 'block';
+                console.error('Edit Error:', error);
+            });
+        });
+
+        // ==================== 删除数据弹窗逻辑 ====================
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+        const deleteModal = document.getElementById('deleteModal');
+        const closeDeleteModal = document.getElementById('closeDeleteModal');
+        const cancelDelete = document.getElementById('cancelDelete');
+        const confirmDelete = document.getElementById('confirmDelete');
+        const deleteCommunity = document.getElementById('deleteCommunity');
+
+        // 打开删除弹窗
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                currentDeleteId = this.getAttribute('data-id');
+                const community = this.getAttribute('data-community');
+                deleteCommunity.textContent = community;
+                deleteModal.style.display = 'flex';
+            });
+        });
+
+        // 关闭删除弹窗
+        function closeDeleteModalFunc() {
+            deleteModal.style.display = 'none';
+            currentDeleteId = '';
+        }
+        closeDeleteModal.addEventListener('click', closeDeleteModalFunc);
+        cancelDelete.addEventListener('click', closeDeleteModalFunc);
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === deleteModal) closeDeleteModalFunc();
+        });
+
+        // 确认删除
+        confirmDelete.addEventListener('click', function() {
+            if (!currentDeleteId) return;
+
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('id', currentDeleteId);
+
+            fetch("{% url 'data_delete_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                closeDeleteModalFunc();
+                if (data.success) {
+                    showToast(data.message);
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                closeDeleteModalFunc();
+                showToast('删除失败：网络错误！', false);
+                console.error('Delete Error:', error);
+            });
+        });
+
+        // ==================== 筛选和重置逻辑 ====================
+        const filterBtn = document.getElementById('filterBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const searchKeyword = document.getElementById('searchKeyword');
+        const cityFilter = document.getElementById('cityFilter');
+        const decorateFilter = document.getElementById('decorateFilter');
+
+        // 筛选
+        filterBtn.addEventListener('click', function() {
+            // 构造筛选参数
+            const params = {
+                keyword: searchKeyword.value.trim(),
+                city: cityFilter.value,
+                decoration: decorateFilter.value
+            };
+
+            // AJAX请求筛选数据
+            fetch("{% url 'data_list_ajax' %}?" + new URLSearchParams(params), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 更新表格数据（实际项目中替换为数据渲染逻辑）
+                    showToast('筛选成功！');
+                    // 这里仅做示例，实际需要根据返回的data.html更新表格
+                    // document.getElementById('dataTableBody').innerHTML = data.html;
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                showToast('筛选失败：网络错误！', false);
+                console.error('Filter Error:', error);
+            });
+        });
+
+        // 重置筛选
+        resetBtn.addEventListener('click', function() {
+            searchKeyword.value = '';
+            cityFilter.value = '';
+            decorateFilter.value = '';
+            // 刷新页面或重置数据
+            window.location.reload();
+        });
+
+        // ==================== 导出数据逻辑 ====================
+        const exportBtn = document.getElementById('exportBtn');
+        exportBtn.addEventListener('click', function() {
+            // 构造导出参数
+            const params = {
+                keyword: searchKeyword.value.trim(),
+                city: cityFilter.value,
+                decoration: decorateFilter.value
+            };
+
+            // 跳转到导出接口
+            window.location.href = "{% url 'data_export' %}?" + new URLSearchParams(params);
+            showToast('正在导出数据，请稍候...');
+        });
+
+        // ==================== 下载模板逻辑 ====================
+        const templateBtn = document.getElementById('templateBtn');
+        templateBtn.addEventListener('click', function() {
+            window.location.href = "{% url 'data_download_template' %}";
+            showToast('正在下载Excel模板...');
+        });
+
+        // ==================== 分页逻辑 ====================
+        const prevPage = document.getElementById('prevPage');
+        const nextPage = document.getElementById('nextPage');
+        const paginationBtns = document.querySelectorAll('.pagination button:not(#prevPage):not(#nextPage)');
+
+        // 分页按钮点击（示例）
+        paginationBtns.forEach(btn => {
+            btn.addEventListener('click', function() {
+                paginationBtns.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                // 实际项目中调用分页接口
+                showToast('已切换到第' + this.textContent + '页');
+            });
+        });
+
+        // 上一页/下一页
+        prevPage.addEventListener('click', function() {
+            showToast('已是第一页', false);
+        });
+
+        nextPage.addEventListener('click', function() {
+            // 实际项目中切换到下一页
+            showToast('已切换到第2页');
+        });
+    document.getElementById('templateBtn').addEventListener('click', function(e) {
+    e.preventDefault();
+    window.location.href = "{% url 'data_download_template' %}";
+});
+    </script>
+
+<!-- 全局加载遮罩（放在页面最底部，</body>之前） -->
+<div id="loadingOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; color: white; font-size: 20px;">
+    <div>
+        <div style="text-align: center; margin-bottom: 10px;">数据正在导入中...</div>
+        <div style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+    </div>
+</div>
+
+
+</body>
+</html>

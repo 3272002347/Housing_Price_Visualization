@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>用户管理 - 后台管理</title>
+    <style>
+        * {margin:0;padding:0;box-sizing:border-box;font-family:"Microsoft Yahei", "PingFang SC", sans-serif;}
+        body {background-color: #f5f7fa;padding:20px;}
+        .header {background:#fff;padding:15px 30px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:30px;display:flex;justify-content:space-between;align-items:center;}
+        .header h1 {font-size:18px;color:#165DFF;font-weight:600;}
+        .back-btn {color:#165DFF;text-decoration:none;padding:6px 12px;border:1px solid #e6f7ff;border-radius:4px;font-size:14px;}
+        .back-btn:hover {background:#e6f7ff;}
+        .content {background:#fff;padding:30px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.05);}
+        .content h2 {font-size:16px;color:#1d2129;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid #f2f3f5;}
+        table {width:100%;border-collapse:collapse;}
+        th, td {padding:12px 15px;text-align:left;border-bottom:1px solid #f2f3f5;}
+        th {background-color:#f9fafc;color:#4e5969;font-weight:600;}
+        td {color:#1d2129;font-size:14px;}
+        .role-tag {padding:3px 8px;border-radius:4px;font-size:12px;}
+        .role-admin {background:#e6f7ff;color:#165DFF;}
+        .role-user {background:#f0f9ff;color:#4894ff;}
+        .role-disabled {background:#fff2f0;color:#f53f3f;}
+        .action-btn {padding:4px 8px;border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;margin-right:5px;text-decoration:none;display:inline-block;}
+        .edit-btn {background:#165DFF;}
+        .delete-btn {background:#f53f3f;}
+        .status-btn {background:#722ed1;}
+
+        /* 弹窗样式 */
+        .modal-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            display: none; /* 默认隐藏 */
+        }
+        .modal-box {
+            background: #fff;
+            width: 100%;
+            max-width: 400px;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f2f3f5;
+        }
+        .modal-header h3 {
+            font-size: 16px;
+            color: #1d2129;
+            font-weight: 600;
+        }
+        .modal-close {
+            font-size: 20px;
+            color: #86909c;
+            cursor: pointer;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #4e5969;
+            margin-bottom: 8px;
+        }
+        .form-group input {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .form-group input:focus {
+            border-color: #165DFF;
+            outline: none;
+        }
+        .modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .modal-cancel {
+            padding: 8px 16px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-save {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #165DFF;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .modal-save:hover {
+            background: #0d47a1;
+        }
+        .error-msg {
+            background-color: #fef0f0;
+            color: #f53f3f;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: none;
+        }
+        /* 删除确认弹窗样式 */
+        .delete-modal-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            display: none; /* 默认隐藏 */
+        }
+        .delete-modal-box {
+            background: #fff;
+            width: 100%;
+            max-width: 350px;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .delete-modal-header {
+            margin-bottom: 15px;
+        }
+        .delete-modal-header h3 {
+            font-size: 16px;
+            color: #1d2129;
+            font-weight: 600;
+            text-align: center;
+        }
+        .delete-modal-body {
+            color: #4e5969;
+            font-size: 14px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .delete-modal-footer {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+        .delete-cancel {
+            padding: 8px 20px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .delete-confirm {
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            background: #f53f3f;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .delete-confirm:hover {
+            background: #d93636;
+        }
+        /* 全局提示框 */
+        .global-toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            border-radius: 4px;
+            color: #fff;
+            font-size: 14px;
+            z-index: 10000;
+            display: none;
+        }
+        .toast-success {
+            background: #00b42a;
+        }
+        .toast-error {
+            background: #f53f3f;
+        }
+         .add-admin-btn {
+            padding: 8px 16px;
+    background: #165DFF;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    /* 关键：绝对定位，对齐操作列 */
+    position: absolute;
+    top: -10px; /* 对齐h2的顶部 */
+    right: 130px; /* 核心！调整这个值，直到按钮对齐「操作」列正上方 */
+    /* 如果right值不好调，也可以用calc计算：
+    right: calc(操作列的宽度/2 - 按钮宽度/2);
+    */
+    /* 可选：固定按钮宽度，避免对齐偏移 */
+    width: 120px;
+        }
+        .add-admin-btn:hover {
+            background: #0d47a1;
+        }
+/* 确保容器相对定位，按钮不会跑出去 */
+.user-list-container {
+    position: relative;
+    padding-right: 100px; /* 给按钮留空间，避免遮挡表格 */
+}
+
+/* 适配表格布局（可选，防止操作列宽度变化） */
+table th:last-child, table td:last-child {
+    width: 180px; /* 固定操作列宽度，方便按钮对齐 */
+    text-align: center; /* 操作列内容居中，按钮也居中对齐 */
+}
+        /* 新增管理员弹窗样式（和编辑弹窗风格统一） */
+        .add-modal-mask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            display: none;
+        }
+        .add-modal-box {
+            background: #fff;
+            width: 100%;
+            max-width: 400px;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+        .add-modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f2f3f5;
+        }
+        .add-modal-header h3 {
+            font-size: 16px;
+            color: #1d2129;
+            font-weight: 600;
+        }
+        .add-modal-close {
+            font-size: 20px;
+            color: #86909c;
+            cursor: pointer;
+        }
+        .add-form-group {
+            margin-bottom: 15px;
+        }
+        .add-form-group label {
+            display: block;
+            font-size: 14px;
+            color: #4e5969;
+            margin-bottom: 8px;
+        }
+        .add-form-group input {
+            width: 100%;
+            height: 40px;
+            padding: 0 12px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .add-form-group input:focus {
+            border-color: #165DFF;
+            outline: none;
+        }
+        .add-modal-footer {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .add-modal-cancel {
+            padding: 8px 16px;
+            border: 1px solid #c9cdd4;
+            border-radius: 4px;
+            background: #fff;
+            color: #4e5969;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .add-modal-save {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background: #165DFF;
+            color: #fff;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .add-modal-save:hover {
+            background: #0d47a1;
+        }
+        .add-error-msg {
+            background-color: #fef0f0;
+            color: #f53f3f;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>用户管理</h1>
+        <a href="{% url 'admin_index' %}" class="back-btn">返回后台首页</a>
+    </div>
+
+    <div class="content">
+        <div class="user-list-container" style="position: relative; margin-bottom: 20px;">
+
+        <h2>用户列表</h2>
+            <button class="add-admin-btn" id="addAdminBtn">新增管理员</button>
+        <table>
+            <thead>
+                <tr>
+                    <th>用户名</th>
+                    <th>邮箱</th>
+                    <th>角色</th>
+                    <th>注册时间</th>
+                    <th>最近一次登录</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.username }}</td>
+                    <td>{{ u.email|default:"未填写" }}</td>
+                    <td>
+                        {% if u.is_active == 0 %}
+                            <span class="role-tag role-disabled">禁用</span>
+                        {% elif u.role == 2 %}
+                            <span class="role-tag role-admin">管理员</span>
+                        {% else %}
+                            <span class="role-tag role-user">普通用户</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ u.date_joined|date:"Y-m-d H:i" }}</td>
+                    <td>{{u.last_login|date:"Y-m-d H:i"|default:"从未登录"}}</td>
+                    <td>
+                        <button class="action-btn edit-btn"
+                                data-user-id="{{ u.id }}"
+                                data-username="{{ u.username }}"
+                                data-email="{{ u.email|default:'' }}">
+                            编辑
+                        </button>
+                        <!-- 切换状态按钮 -->
+                        <button class="action-btn status-btn"
+                                data-user-id="{{ u.id }}"
+                                data-is-active="{{ u.is_active }}"
+                                data-username="{{ u.username }}">
+                            {{ u.is_active|yesno:'禁用,启用' }}
+                        </button>
+                        <button class="action-btn delete-btn">删除</button>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" style="text-align:center;color:#86909c;">暂无用户数据</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+<!-- 编辑用户弹窗 -->
+    <div class="modal-mask" id="editModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3>编辑用户信息</h3>
+                <span class="modal-close" id="closeModal">×</span>
+            </div>
+            <div class="error-msg" id="modalError"></div>
+            <!-- 编辑表单 -->
+            <form id="editForm">
+                {% csrf_token %}
+                <input type="hidden" id="userId" name="user_id">
+                <div class="form-group">
+                    <label for="editUsername">用户名</label>
+                    <input type="text" id="editUsername" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="editEmail">邮箱</label>
+                    <input type="email" id="editEmail" name="email">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="modal-cancel" id="cancelEdit">取消</button>
+                    <button type="submit" class="modal-save">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- 新增：删除确认弹窗 -->
+    <div class="delete-modal-mask" id="deleteModal">
+        <div class="delete-modal-box">
+            <div class="delete-modal-header">
+                <h3>确认删除</h3>
+            </div>
+            <div class="delete-modal-body">
+                确定要删除用户 <span id="deleteUsername" style="color:#f53f3f;font-weight:600;"></span> 吗？<br>
+                <span style="font-size:12px;color:#86909c;">删除后数据不可恢复！</span>
+            </div>
+            <div class="delete-modal-footer">
+                <button type="button" class="delete-cancel" id="cancelDelete">取消</button>
+                <button type="button" class="delete-confirm" id="confirmDelete">确定删除</button>
+            </div>
+        </div>
+    </div>
+       <!-- 新增：新增管理员弹窗 -->
+    <div class="add-modal-mask" id="addModal">
+        <div class="add-modal-box">
+            <div class="add-modal-header">
+                <h3>新增管理员</h3>
+                <span class="add-modal-close" id="closeAddModal">×</span>
+            </div>
+            <div class="add-error-msg" id="addModalError"></div>
+            <form id="addAdminForm">
+                {% csrf_token %}
+                <div class="add-form-group">
+                    <label for="addUsername">用户名 <span style="color:red;">*</span></label>
+                    <input type="text" id="addUsername" name="username" required placeholder="请输入用户名">
+                </div>
+                <div class="add-form-group">
+                    <label for="addPassword">密码 <span style="color:red;">*</span></label>
+                    <input type="password" id="addPassword" name="password" required placeholder="请输入密码（至少6位）">
+                </div>
+                <div class="add-form-group">
+                    <label for="addPassword2">确认密码 <span style="color:red;">*</span></label>
+                    <input type="password" id="addPassword2" name="password2" required placeholder="请再次输入密码">
+                </div>
+                <div class="add-form-group">
+                    <label for="addEmail">邮箱（可选）</label>
+                    <input type="email" id="addEmail" name="email" placeholder="请输入邮箱（选填）">
+                </div>
+                <div class="add-modal-footer">
+                    <button type="button" class="add-modal-cancel" id="cancelAdd">取消</button>
+                    <button type="submit" class="add-modal-save">创建管理员</button>
+                </div>
+            </form>
+        </div>
+    </div>
+<!-- 全局提示框 -->
+    <div class="global-toast" id="globalToast"></div>
+<script>
+        // 获取弹窗元素
+        const modal = document.getElementById('editModal');
+        const closeModal = document.getElementById('closeModal');
+        const cancelEdit = document.getElementById('cancelEdit');
+        const editForm = document.getElementById('editForm');
+        const modalError = document.getElementById('modalError');
+        const editButtons = document.querySelectorAll('.edit-btn');
+
+        // 点击编辑按钮打开弹窗
+        editButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // 清空错误提示
+                modalError.style.display = 'none';
+                // 填充用户数据到表单
+                const userId = this.getAttribute('data-user-id');
+                const username = this.getAttribute('data-username');
+                const email = this.getAttribute('data-email');
+
+                document.getElementById('userId').value = userId;
+                document.getElementById('editUsername').value = username;
+                document.getElementById('editEmail').value = email;
+
+                // 显示弹窗
+                modal.style.display = 'flex';
+            });
+        });
+
+        // 关闭弹窗
+        function closeModalFunc() {
+            modal.style.display = 'none';
+            // 清空表单
+            editForm.reset();
+            modalError.style.display = 'none';
+        }
+        closeModal.addEventListener('click', closeModalFunc);
+        cancelEdit.addEventListener('click', closeModalFunc);
+
+        // 点击弹窗外部关闭
+        modal.addEventListener('click', function(e) {
+            if (e.target === modal) {
+                closeModalFunc();
+            }
+        });
+
+        // 提交编辑表单（AJAX）
+        editForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+
+            fetch("{% url 'admin_user_edit_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest' // 标记为AJAX请求
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 成功：刷新页面
+                    window.location.reload();
+                } else {
+                    // 失败：显示错误信息
+                    modalError.textContent = data.message;
+                    modalError.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                modalError.textContent = '网络错误，请重试！';
+                modalError.style.display = 'block';
+                console.error('Error:', error);
+            });
+        });
+    // 获取删除弹窗元素
+        const deleteModal = document.getElementById('deleteModal');
+        const cancelDelete = document.getElementById('cancelDelete');
+        const confirmDelete = document.getElementById('confirmDelete');
+        const deleteUsername = document.getElementById('deleteUsername');
+        const globalToast = document.getElementById('globalToast');
+        let currentDeleteUserId = ''; // 存储当前要删除的用户ID
+
+        // 点击删除按钮打开确认弹窗
+        const deleteButtons = document.querySelectorAll('.delete-btn');
+        deleteButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                // 获取当前用户信息
+                currentDeleteUserId = this.parentElement.querySelector('.edit-btn').getAttribute('data-user-id');
+                const username = this.parentElement.querySelector('.edit-btn').getAttribute('data-username');
+
+                // 填充弹窗内容
+                deleteUsername.textContent = username;
+                // 显示删除弹窗
+                deleteModal.style.display = 'flex';
+            });
+        });
+
+        // 关闭删除弹窗
+        function closeDeleteModal() {
+            deleteModal.style.display = 'none';
+            currentDeleteUserId = ''; // 清空ID
+        }
+        cancelDelete.addEventListener('click', closeDeleteModal);
+
+        // 点击弹窗外部关闭
+        deleteModal.addEventListener('click', function(e) {
+            if (e.target === deleteModal) {
+                closeDeleteModal();
+            }
+        });
+
+        // 显示全局提示
+        function showToast(message, isSuccess = true) {
+            globalToast.textContent = message;
+            globalToast.className = 'global-toast ' + (isSuccess ? 'toast-success' : 'toast-error');
+            globalToast.style.display = 'block';
+
+            // 3秒后隐藏
+            setTimeout(() => {
+                globalToast.style.display = 'none';
+            }, 3000);
+        }
+
+        // 确认删除（AJAX提交）
+        confirmDelete.addEventListener('click', function() {
+            if (!currentDeleteUserId) return;
+
+            // 构造FormData
+            const formData = new FormData();
+            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('user_id', currentDeleteUserId);
+
+            // AJAX请求删除接口
+            fetch("{% url 'admin_user_delete_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                closeDeleteModal(); // 关闭弹窗
+                if (data.success) {
+                    showToast(data.message);
+                    // 成功后刷新页面
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    showToast(data.message, false);
+                }
+            })
+            .catch(error => {
+                closeDeleteModal();
+                showToast('删除失败：网络错误！', false);
+                console.error('Delete Error:', error);
+            });
+        });
+const statusButtons = document.querySelectorAll('.status-btn');
+statusButtons.forEach(btn => {
+    btn.addEventListener('click', function() {
+        const userId = this.getAttribute('data-user-id');
+        const isActive = this.getAttribute('data-is-active') === 'True'; // 转布尔值
+        const username = this.getAttribute('data-username');
+        const actionText = isActive ? '禁用' : '启用';
+
+        // 弹出确认框
+        if (!confirm(`确定要${actionText}用户 ${username} 吗？`)) {
+            return;
+        }
+
+        // 构造FormData
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        formData.append('user_id', userId);
+
+        // AJAX请求切换状态接口
+        fetch("{% url 'admin_user_toggle_status_ajax' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message); // 成功提示
+                setTimeout(() => {
+                    window.location.reload(); // 1秒后刷新
+                }, 1000);
+            } else {
+                // 失败提示（用户确认后再刷新）
+                alert(data.message); // 阻塞式提示，用户点击确定后才继续
+                window.location.reload();
+            }
+        })
+        .catch(error => {
+            alert('操作失败：网络错误！');
+            console.error('Toggle Status Error:', error);
+        });
+    });
+});
+
+
+    // ==================== 新增：新增管理员逻辑 ====================
+        // 获取新增弹窗元素
+        const addModal = document.getElementById('addModal');
+        const addAdminBtn = document.getElementById('addAdminBtn');
+        const closeAddModal = document.getElementById('closeAddModal');
+        const cancelAdd = document.getElementById('cancelAdd');
+        const addAdminForm = document.getElementById('addAdminForm');
+        const addModalError = document.getElementById('addModalError');
+
+        // 打开新增弹窗
+        addAdminBtn.addEventListener('click', function() {
+            addModalError.style.display = 'none';
+            addAdminForm.reset(); // 清空表单
+            addModal.style.display = 'flex';
+        });
+
+        // 关闭新增弹窗
+        function closeAddModalFunc() {
+            addModal.style.display = 'none';
+            addModalError.style.display = 'none';
+        }
+        closeAddModal.addEventListener('click', closeAddModalFunc);
+        cancelAdd.addEventListener('click', closeAddModalFunc);
+        addModal.addEventListener('click', function(e) {
+            if (e.target === addModal) closeAddModalFunc();
+        });
+
+        // 提交新增管理员表单
+        addAdminForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            addModalError.style.display = 'none';
+
+            // 前端基础校验
+            const username = document.getElementById('addUsername').value.trim();
+            const password = document.getElementById('addPassword').value;
+            const password2 = document.getElementById('addPassword2').value;
+            const email = document.getElementById('addEmail').value.trim();
+
+            // 校验用户名
+            if (!username) {
+                addModalError.textContent = '用户名不能为空！';
+                addModalError.style.display = 'block';
+                return;
+            }
+            // 校验密码长度
+            if (password.length < 6) {
+                addModalError.textContent = '密码长度不能少于6位！';
+                addModalError.style.display = 'block';
+                return;
+            }
+            // 校验密码一致性
+            if (password !== password2) {
+                addModalError.textContent = '两次输入的密码不一致！';
+                addModalError.style.display = 'block';
+                return;
+            }
+
+            // 构造FormData
+            const formData = new FormData(this);
+
+            // AJAX提交
+            fetch("{% url 'admin_user_add_ajax' %}", {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    closeAddModalFunc();
+                    showToast(data.message); // 调用原有提示函数
+                    // 1秒后刷新页面
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    addModalError.textContent = data.message;
+                    addModalError.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                addModalError.textContent = '网络错误，请重试！';
+                addModalError.style.display = 'block';
+                console.error('Add Admin Error:', error);
+            });
+        });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,13 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>前台首页</title>
+</head>
+<body>
+    <h1>欢迎 {{ user.username }} 登录（普通用户）</h1>
+    <p>用户角色：{{ user.get_role_display }}</p>  <!-- 显示角色中文名称 -->
+    <a href="{% url 'logout' %}">退出登录</a>
+</body>
+</html>
