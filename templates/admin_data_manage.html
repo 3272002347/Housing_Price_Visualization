@@ -354,9 +354,9 @@
                 </select>
                 <select id="decorateFilter">
                     <option value="">全部装修类型</option>
-                    <option value="精装" {% if decoration == '精装' %}selected{% endif %}>精装</option>
-                    <option value="简装" {% if decoration == '简装' %}selected{% endif %}>简装</option>
-                    <option value="毛坯" {% if decoration == '毛坯' %}selected{% endif %}>毛坯</option>
+                    {% for deco in decoration_list %}
+                    <option value="{{ deco }}" {% if decoration == deco %}selected{% endif %}>{{ deco }}</option>
+                    {% endfor %}
                 </select>
                 <button class="filter-btn" id="filterBtn">筛选</button>
                 <button class="reset-btn" id="resetBtn">重置</button>
@@ -491,7 +491,6 @@
                             <option value="湖北省">湖北省</option>
                             <option value="广东省">广东省</option>
                             <option value="浙江省">浙江省</option>
-                            <!-- 可继续添加其他省份 -->
                         </select>
                     </div>
                     <div class="form-group">
@@ -659,13 +658,19 @@
             }
         });
         // 省市联动数据（前端写死）
-        const provinceCityMap = {
-            "湖南省": ["长沙市", "株洲市", "湘潭市", "衡阳市", "岳阳市"],
-            "湖北省": ["武汉市", "黄石市", "襄阳市", "荆州市"],
-            "广东省": ["广州市", "深圳市", "佛山市", "东莞市"],
-            "浙江省": ["杭州市", "宁波市", "温州市", "嘉兴市"]
-            // 可继续扩展其他省份
-        };
+        const provinceCityMap = {};
+        fetch('./static/province-city.json') // 路径根据实际文件位置调整
+          .then(response => response.json())
+          .then(data => {
+            // 赋值给 provinceCityMap
+            provinceCityMap = data.provinceCityMap;
+
+            // 数据加载完成后再执行业务逻辑（比如渲染联动下拉框）
+            initProvinceCitySelect();
+          })
+          .catch(error => console.error('加载省市数据失败：', error));
+
+
 
         // 获取DOM元素
         const provinceSelect = document.getElementById('province');
@@ -753,10 +758,10 @@
                 console.error('Upload Error:', error);
             })
             .finally(() => {
-        // ✅ 无论成功失败，都隐藏加载遮罩，解锁界面
-        loadingOverlay.style.display = 'none';
-        document.querySelector('#uploadForm button[type="submit"]').disabled = false;
-         });
+            // ✅ 无论成功失败，都隐藏加载遮罩，解锁界面
+            loadingOverlay.style.display = 'none';
+            document.querySelector('#uploadForm button[type="submit"]').disabled = false;
+             });
         });
 
         // ==================== 编辑数据弹窗逻辑 ====================
@@ -775,7 +780,7 @@
                 const id = this.getAttribute('data-id');
                 const city = this.getAttribute('data-city');
                 const area = this.getAttribute('data-area');
-                const community = this.getAttribute('data-community');
+                const title = this.getAttribute('data-title');
                 const houseType = this.getAttribute('data-house-type');
                 const areaSize = this.getAttribute('data-area-size');
                 const unitPrice = this.getAttribute('data-unit-price');
@@ -785,7 +790,7 @@
                 document.getElementById('editId').value = id;
                 document.getElementById('editCity').value = city;
                 document.getElementById('editArea').value = area;
-                document.getElementById('editCommunity').value = community;
+                document.getElementById('editCommunity').value = title;
                 document.getElementById('editHouseType').value = houseType;
                 document.getElementById('editAreaSize').value = areaSize;
                 document.getElementById('editUnitPrice').value = unitPrice;
@@ -873,8 +878,8 @@
         deleteButtons.forEach(btn => {
             btn.addEventListener('click', function() {
                 currentDeleteId = this.getAttribute('data-id');
-                const community = this.getAttribute('data-community');
-                deleteCommunity.textContent = community;
+                const title = this.getAttribute('data-title');
+                deleteCommunity.textContent = title;
                 deleteModal.style.display = 'flex';
             });
         });
@@ -934,57 +939,53 @@
         // 筛选
         filterBtn.addEventListener('click', function() {
             // 构造筛选参数
-            const params = {
-                keyword: searchKeyword.value.trim(),
-                city: cityFilter.value,
-                decoration: decorateFilter.value
-            };
+            const params = new URLSearchParams();
+            const keyword = searchKeyword.value.trim();
+            const city = cityFilter.value;
+            const decoration = decorateFilter.value;
+            // 2. 只添加非空参数（避免URL冗余）
+            if (keyword) params.append('keyword', keyword);
+            if (city) params.append('city', city);
+            if (decoration) params.append('decoration', decoration);
+            params.append('page', 1); // 筛选后默认回到第1页
 
-            // AJAX请求筛选数据
-            fetch("{% url 'data_list_ajax' %}?" + new URLSearchParams(params), {
-                method: 'GET',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // 更新表格数据（实际项目中替换为数据渲染逻辑）
-                    showToast('筛选成功！');
-                    // 这里仅做示例，实际需要根据返回的data.html更新表格
-                    // document.getElementById('dataTableBody').innerHTML = data.html;
-                } else {
-                    showToast(data.message, false);
-                }
-            })
-            .catch(error => {
-                showToast('筛选失败：网络错误！', false);
-                console.error('Filter Error:', error);
-            });
+            // 3. 跳转到当前页面（后端admin_data_manage会根据参数筛选）
+            window.location.href = `{% url 'admin_data_manage' %}?${params.toString()}`;
+
         });
-
+        // 回车搜索
+        searchKeyword.addEventListener('keyup', function(e) {
+            if (e.key === 'Enter') {
+                filterBtn.click();
+            }
+        });
         // 重置筛选
         resetBtn.addEventListener('click', function() {
-            searchKeyword.value = '';
-            cityFilter.value = '';
-            decorateFilter.value = '';
-            // 刷新页面或重置数据
-            window.location.reload();
+             // 1. 先显示提示信息
+            showToast('筛选条件已重置');
+
+            // 2. 延迟 1000 毫秒（1秒）后再执行刷新逻辑
+            // 这样用户能完整看到提示框，再跳转到刷新后的页面
+            setTimeout(function() {
+                // 重置 URL 参数（如果需要清空筛选条件跳转）
+                window.location.href = "{% url 'admin_data_manage' %}";
+
+                // 或者直接刷新当前页面（上一行代码已包含跳转，通常无需再 reload）
+                // window.location.reload();
+            }, 1000);
         });
 
         // ==================== 导出数据逻辑 ====================
         const exportBtn = document.getElementById('exportBtn');
         exportBtn.addEventListener('click', function() {
-            // 构造导出参数
-            const params = {
-                keyword: searchKeyword.value.trim(),
-                city: cityFilter.value,
-                decoration: decorateFilter.value
-            };
-
-            // 跳转到导出接口
-            window.location.href = "{% url 'data_export' %}?" + new URLSearchParams(params);
+            const params = new URLSearchParams();
+            const keyword = searchKeyword.value.trim();
+            const city = cityFilter.value;
+            const decoration = decorateFilter.value;
+            if (keyword) params.append('keyword', keyword);
+            if (city) params.append('city', city);
+            if (decoration) params.append('decoration', decoration);
+            window.location.href = "{% url 'data_export' %}?" + params.toString();
             showToast('正在导出数据，请稍候...');
         });
 

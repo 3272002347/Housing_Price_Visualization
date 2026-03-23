@@ -18,6 +18,9 @@ from .utils import clean_area, clean_house_age, clean_total_price
 #模板下载
 @login_required
 def data_download_template(request):
+    if request.user.role != 2:
+        messages.error(request, "仅管理员可访问")
+        return redirect('/login/')
     """下载房价数据导入模板"""
     wb = Workbook()
     ws = wb.active
@@ -60,14 +63,43 @@ def data_export(request):
 @login_required
 def data_delete_ajax(request):
     if request.user.role != 2:
-        messages.error(request, "仅管理员可访问")
-        return redirect('/login/')
+        return JsonResponse({'success': False, 'message': '仅管理员可操作'})
+    if request.method == 'POST':
+        user_id = request.POST.get('id')
+        try:
+            house = get_object_or_404(HousePriceData, pk=user_id)
+            house.delete()
+            return JsonResponse({'success': True, 'message': '删除成功'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'删除失败：{str(e)}'})
+    return JsonResponse({'success': False, 'message': '请求方式错误'})
 #数据修改
 @login_required
 def data_edit_ajax(request):
     if request.user.role != 2:
-        messages.error(request, "仅管理员可访问")
-        return redirect('/login/')
+        return JsonResponse({'success': False, 'message': '仅管理员可操作'})
+    if request.method == 'POST':
+        try:
+            house_id = request.POST.get('id')
+            house = get_object_or_404(HousePriceData, pk=house_id)
+            house.city = request.POST.get('city')
+            house.area = request.POST.get('area')
+            house.title = request.POST.get('community')  # 前端传的community对应title
+            house.house_type = request.POST.get('house_type')
+            house.area_size = request.POST.get('area_size')
+            house.total_price = request.POST.get('total_price')
+            house.decoration = request.POST.get('decoration')
+            house.orientation = request.POST.get('orientation', '')
+            house.floor_info = request.POST.get('floor_info', '')
+            house.house_age = request.POST.get('house_age', '')
+            house.structure_type = request.POST.get('structure_type', '')
+            house.save()
+            return JsonResponse({'success': True, 'message': '修改成功'})
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': f'修改失败：{str(e)}'})
+    return JsonResponse({'success': False, 'message': '请求方式错误'})
+
+
 #数据上传
 @login_required
 def data_upload_ajax(request):
