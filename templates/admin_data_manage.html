@@ -349,7 +349,7 @@
                 <select id="cityFilter">
                     <option value="">全部城市</option>
                     {% for city in city_list %}
-                    <option value="{{ city }}" {% if city == city %}selected{% endif %}>{{ city }}</option>
+                    <option value="{{ city }}" {% if city == city_filter %}selected{% endif %}>{{ city }}</option>
                     {% endfor %}
                 </select>
                 <select id="decorateFilter">
@@ -371,15 +371,25 @@
                     <th>房源标题</th>
                     <th>小区名称</th>
                     <th>户型</th>
-                    <th>面积(㎡) <span class="sort-icon">↑↓</span></th>
+                    <th>面积(㎡) <span class="sort-icon" data-sort="area_size" style="cursor: pointer;">
+                {% if sort_by == 'area_size' and sort_dir == 'asc' %}↑{% elif sort_by == 'area_size' and sort_dir == 'desc' %}↓{% else %}↑↓{% endif %}
+            </span></th>
                     <th>朝向</th>
                     <th>装修情况</th>
                     <th>楼层信息</th>
-                    <th>房龄<span class="sort-icon">↑↓</span></th>
+                    <th>房龄<span class="sort-icon" data-sort="house_age" style="cursor: pointer;">
+                {% if sort_by == 'house_age' and sort_dir == 'asc' %}↑{% elif sort_by == 'house_age' and sort_dir == 'desc' %}↓{% else %}↑↓{% endif %}
+            </span></th>
                     <th>建筑结构</th>
-                    <th>单价(元/㎡) <span class="sort-icon">↑↓</span></th>
-                    <th>总价(万元)<span class="sort-icon">↑↓</span></th>
-                    <th>录入时间<span class="sort-icon">↑↓</span></th>
+                    <th>单价(元/㎡) <span class="sort-icon" data-sort="unit_price" style="cursor: pointer;">
+                {% if sort_by == 'unit_price' and sort_dir == 'asc' %}↑{% elif sort_by == 'unit_price' and sort_dir == 'desc' %}↓{% else %}↑↓{% endif %}
+            </span></th>
+                    <th>总价(万元)<span class="sort-icon" data-sort="total_price" style="cursor: pointer;">
+                {% if sort_by == 'total_price' and sort_dir == 'asc' %}↑{% elif sort_by == 'total_price' and sort_dir == 'desc' %}↓{% else %}↑↓{% endif %}
+            </span></th>
+                    <th>录入时间<span class="sort-icon" data-sort="create_time" style="cursor: pointer;">
+                {% if sort_by == 'create_time' and sort_dir == 'asc' %}↑{% elif sort_by == 'create_time' and sort_dir == 'desc' %}↓{% else %}↑↓{% endif %}
+            </span></th>
                     <th>操作</th>
                 </tr>
             </thead>
@@ -418,6 +428,7 @@
                         data-house_age="{{ data.house_age }}"
                         data-structure_type="{{ data.structure_type|default:'' }}"
                         data-total_price="{{ data.total_price }}"
+                        data-unit-price="{{ data.unit_price }}"
                         data-create-time="{{ data.create_time|date:'Y-m-d'|default:'未填写' }}">
                     编辑
                 </button>
@@ -444,7 +455,7 @@
         <div class="pagination" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; padding: 10px; justify-content: center;">
             <!-- 上一页 -->
             {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">上一页</a>
+                <a href="?page={{ page_obj.previous_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">上一页</a>
             {% else %}
                 <span class="page-btn disabled">上一页</span>
             {% endif %}
@@ -456,13 +467,13 @@
                 {% elif num == '...' %}
                     <span class="page-btn">...</span>
                 {% else %}
-                    <a href="?page={{ num }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">{{ num }}</a>
+                    <a href="?page={{ num }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">{{ num }}</a>
                 {% endif %}
             {% endfor %}
 
             <!-- 下一页 -->
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}" class="page-btn">下一页</a>
+                <a href="?page={{ page_obj.next_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">下一页</a>
             {% else %}
                 <span class="page-btn disabled">下一页</span>
             {% endif %}
@@ -487,10 +498,6 @@
                         <label for="province">省份 <span class="required">*</span></label>
                         <select id="province" name="province" required>
                             <option value="">请选择省份</option>
-                            <option value="湖南省">湖南省</option>
-                            <option value="湖北省">湖北省</option>
-                            <option value="广东省">广东省</option>
-                            <option value="浙江省">浙江省</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -505,7 +512,7 @@
                         <span class="file-text" id="fileText">未选择文件</span>
                     </div>
                     <div style="font-size:12px;color:#86909c;margin-top:5px;">
-                        支持格式：.xlsx/.xls | 最大大小：10MB | <a href="#" style="color:#165DFF;">下载模板</a>
+                        支持格式：.xlsx/.xls | 最大大小：10MB
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -527,15 +534,21 @@
             <form id="editForm">
                 {% csrf_token %}
                 <input type="hidden" id="editId" name="id">
+                <input type="hidden" id="editAreaSize" name="area_size">
+                <input type="hidden" id="editOrientation" name="orientation">
+                <input type="hidden" id="editFloorInfo" name="floor_info">
+                <input type="hidden" id="editStructureType" name="structure_type">
+                <input type="hidden" id="editDecoration" name="decoration">
+                <div class="form-group">
+                    <label for="editProvince">省份 <span class="required">*</span></label>
+                    <select id="editProvince" name="editProvince" required>
+                        <option value="">请选择省份</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label for="editCity">城市 <span class="required">*</span></label>
                     <select id="editCity" name="city" required>
-                        <option value="">请选择城市</option>
-                        <option value="北京">北京</option>
-                        <option value="上海">上海</option>
-                        <option value="广州">广州</option>
-                        <option value="深圳">深圳</option>
-                        <option value="杭州">杭州</option>
+                        <option value="">请先选择省份</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -550,27 +563,25 @@
                     <label for="editHouseType">户型 <span class="required">*</span></label>
                     <input type="text" id="editHouseType" name="house_type" required placeholder="如：三室两厅">
                 </div>
+
+
                 <div class="form-group">
-                    <label for="editAreaSize">面积(㎡) <span class="required">*</span></label>
-                    <input type="number" id="editAreaSize" name="area_size" required placeholder="请输入面积" min="0" step="0.1">
+                    <label for="editHouseAge">房龄 <span class="required">*</span></label>
+                    <input type="text" id="editHouseAge" name="house_age" required placeholder="如：5年/10年">
                 </div>
+
                 <div class="form-group">
                     <label for="editUnitPrice">单价(元/㎡) <span class="required">*</span></label>
-                    <input type="number" id="editUnitPrice" name="unit_price" required placeholder="请输入单价" min="0">
+                    <input type="number" id="editUnitPrice" name="unit_price" required
+                           placeholder="自动计算" min="0" step="0.01"
+                           disabled style="background: #f5f5f5; cursor: not-allowed;">
+                    <input type="hidden" id="hiddenUnitPrice" name="unit_price">
                 </div>
                 <div class="form-group">
                     <label for="editTotalPrice">总价(万元)</label>
-                    <input type="number" id="editTotalPrice" name="total_price" placeholder="自动计算（可选）" min="0" step="0.1">
+                    <input type="number" id="editTotalPrice" name="total_price" placeholder="请输入总价" min="0" step="0.01">
                 </div>
-                <div class="form-group">
-                    <label for="editDecoration">装修类型 <span class="required">*</span></label>
-                    <select id="editDecoration" name="decoration" required>
-                        <option value="">请选择装修类型</option>
-                        <option value="精装">精装</option>
-                        <option value="简装">简装</option>
-                        <option value="毛坯">毛坯</option>
-                    </select>
-                </div>
+
                 <div class="modal-footer">
                     <button type="button" class="modal-cancel" id="cancelEdit">取消</button>
                     <button type="submit" class="modal-save">保存修改</button>
@@ -601,93 +612,96 @@
     <div class="global-toast" id="globalToast"></div>
 
     <script>
-        // 全局变量
-        let currentDeleteId = '';
-
-        // 显示Toast提示
-        function showToast(message, isSuccess = true) {
-            const toast = document.getElementById('globalToast');
-            toast.textContent = message;
-            toast.className = 'global-toast ' + (isSuccess ? 'toast-success' : 'toast-error');
-            toast.style.display = 'block';
-
-            setTimeout(() => {
-                toast.style.display = 'none';
-            }, 3000);
-        }
-
-        // ==================== 导入数据弹窗逻辑 ====================
-        const uploadBtn = document.getElementById('uploadBtn');
-        const uploadModal = document.getElementById('uploadModal');
-        const closeUploadModal = document.getElementById('closeUploadModal');
-        const cancelUpload = document.getElementById('cancelUpload');
-        const excelFile = document.getElementById('excelFile');
-        const fileText = document.getElementById('fileText');
-        const uploadForm = document.getElementById('uploadForm');
-        const uploadError = document.getElementById('uploadError');
-        const uploadSuccess = document.getElementById('uploadSuccess');
-
-        // 打开导入弹窗
-        uploadBtn.addEventListener('click', function() {
-            uploadError.style.display = 'none';
-            uploadSuccess.style.display = 'none';
-            excelFile.value = '';
-            fileText.textContent = '未选择文件';
-            provinceSelect.value = '';
-            citySelect.innerHTML = '<option value="">请先选择省份</option>';
-            citySelect.disabled = true;
-            uploadModal.style.display = 'flex';
-        });
-
-        // 关闭导入弹窗
-        function closeUploadModalFunc() {
-            uploadModal.style.display = 'none';
-        }
-        closeUploadModal.addEventListener('click', closeUploadModalFunc);
-        cancelUpload.addEventListener('click', closeUploadModalFunc);
-        uploadModal.addEventListener('click', function(e) {
-            if (e.target === uploadModal) closeUploadModalFunc();
-        });
-
-        // 选择文件后更新显示
-        excelFile.addEventListener('change', function() {
-            if (this.files.length > 0) {
-                fileText.textContent = this.files[0].name;
-            } else {
-                fileText.textContent = '未选择文件';
+        document.addEventListener('DOMContentLoaded', async function() {
+    // ==================== 全局变量 & 基础函数 ====================\n
+    let currentDeleteId = '';
+    let provinceCityData = {};
+    let provinceSelect = document.getElementById('province');
+    let citySelect = document.getElementById('city');
+    let editProvince = document.getElementById('editProvince');
+    let editCity = document.getElementById('editCity');
+    const sortIcons = document.querySelectorAll('.sort-icon');
+    sortIcons.forEach(icon => {
+        icon.addEventListener('click', function() {
+            const field = this.getAttribute('data-sort');
+            let currentSort = '{{ sort_by }}';
+            let currentDir = '{{ sort_dir }}';
+            // 计算新的排序方向：同字段则切换方向，不同字段则默认升序
+            let newDir = 'asc';
+            if (field === currentSort) {
+                newDir = currentDir === 'asc' ? 'desc' : 'asc';
             }
+            // 构造新的URL参数（保留筛选+分页+排序）
+            const params = new URLSearchParams(window.location.search);
+            params.set('sort', field);
+            params.set('dir', newDir);
+            params.set('page', 1); // 排序后回到第1页
+            window.location.href = `{% url 'admin_data_manage' %}?${params.toString()}`;
         });
-        // 省市联动数据（前端写死）
-        const provinceCityMap = {};
-        fetch('./static/province-city.json') // 路径根据实际文件位置调整
-          .then(response => response.json())
-          .then(data => {
-            // 赋值给 provinceCityMap
-            provinceCityMap = data.provinceCityMap;
+    });
+    // 显示Toast提示
+    function showToast(message, isSuccess = true) {
+        const toast = document.getElementById('globalToast');
+        toast.textContent = message;
+        toast.className = 'global-toast ' + (isSuccess ? 'toast-success' : 'toast-error');
+        toast.style.display = 'block';
 
-            // 数据加载完成后再执行业务逻辑（比如渲染联动下拉框）
-            initProvinceCitySelect();
-          })
-          .catch(error => console.error('加载省市数据失败：', error));
+        setTimeout(() => {
+            toast.style.display = 'none';
+        }, 3000);
+    }
 
+    // 加载省市数据（核心函数）
+    async function loadProvinceCityData() {
+        try {
+            const response = await fetch('/static/province-city.json');
+            if (!response.ok) throw new Error('省市数据加载失败');
+            provinceCityData = await response.json();
+            // 初始化导入弹窗的省份下拉框
+            initProvinceSelect('province');
+            // 初始化编辑弹窗的省份下拉框
+            initProvinceSelect('editProvince');
+            return true;
+        } catch (error) {
+            console.error('加载省市数据出错:', error);
+            showToast('省市数据加载失败，请刷新页面!', false);
+            return false;
+        }
+    }
 
+    // 初始化省份下拉框选项
+    function initProvinceSelect(selectId) {
+        const provinceSelect = document.getElementById(selectId);
+        if (!provinceSelect || !provinceCityData) return;
 
-        // 获取DOM元素
-        const provinceSelect = document.getElementById('province');
-        const citySelect = document.getElementById('city');
+        // 清空原有选项（保留默认提示）
+        provinceSelect.innerHTML = '<option value="">请选择省份</option>';
 
-        // 监听省份变化，加载对应城市
+        // 动态添加省份选项
+        Object.keys(provinceCityData).forEach(province => {
+            const option = document.createElement('option');
+            option.value = province;
+            option.textContent = province;
+            provinceSelect.appendChild(option);
+        });
+    }
+
+    // 绑定省市联动逻辑
+    function bindProvinceCityLinkage(provinceSelectId, citySelectId) {
+        const provinceSelect = document.getElementById(provinceSelectId);
+        const citySelect = document.getElementById(citySelectId);
+        if (!provinceSelect || !citySelect) return;
+
+        // 监听省份变化
         provinceSelect.addEventListener('change', function() {
             const selectedProvince = this.value;
             // 清空城市选项
             citySelect.innerHTML = '<option value="">请选择城市</option>';
-            citySelect.disabled = true;
+            citySelect.disabled = !selectedProvince;
 
-            if (selectedProvince && provinceCityMap[selectedProvince]) {
-                // 启用城市下拉框
-                citySelect.disabled = false;
-                // 遍历添加城市选项
-                provinceCityMap[selectedProvince].forEach(city => {
+            // 根据选中的省份加载城市
+            if (selectedProvince && provinceCityData[selectedProvince]) {
+                provinceCityData[selectedProvince].forEach(city => {
                     const option = document.createElement('option');
                     option.value = city;
                     option.textContent = city;
@@ -695,313 +709,420 @@
                 });
             }
         });
-        // 提交导入表单
-        uploadForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            uploadError.style.display = 'none';
-            uploadSuccess.style.display = 'none';
+    }
 
-            const file = excelFile.files[0];
-            if (!file) {
-                uploadError.textContent = '请选择要导入的Excel文件！';
-                uploadError.style.display = 'block';
-                return;
+    // ==================== 加载省市数据 & 初始化联动 ====================\n
+    const dataLoaded = await loadProvinceCityData();
+    if (!dataLoaded) return;
+    bindProvinceCityLinkage('province', 'city');
+    bindProvinceCityLinkage('editProvince', 'editCity');
+
+    // ==================== 导入数据弹窗逻辑 ====================\n
+    const uploadBtn = document.getElementById('uploadBtn');
+    const uploadModal = document.getElementById('uploadModal');
+    const closeUploadModal = document.getElementById('closeUploadModal');
+    const cancelUpload = document.getElementById('cancelUpload');
+    const excelFile = document.getElementById('excelFile');
+    const fileText = document.getElementById('fileText');
+    const uploadForm = document.getElementById('uploadForm');
+    const uploadError = document.getElementById('uploadError');
+    const uploadSuccess = document.getElementById('uploadSuccess');
+
+    // 关闭导入弹窗
+    function closeUploadModalFunc() {
+        uploadModal.style.display = 'none';
+    }
+
+    // 打开导入弹窗
+    uploadBtn.addEventListener('click', function() {
+        uploadError.style.display = 'none';
+        uploadSuccess.style.display = 'none';
+        excelFile.value = '';
+        fileText.textContent = '未选择文件';
+        provinceSelect.value = '';
+        citySelect.innerHTML = '<option value="">请先选择省份</option>';
+        citySelect.disabled = true;
+        uploadModal.style.display = 'flex';
+    });
+
+    // 关闭导入弹窗事件绑定
+    closeUploadModal.addEventListener('click', closeUploadModalFunc);
+    cancelUpload.addEventListener('click', closeUploadModalFunc);
+    uploadModal.addEventListener('click', function(e) {
+        if (e.target === uploadModal) closeUploadModalFunc();
+    });
+
+    // 选择文件后更新显示
+    excelFile.addEventListener('change', function() {
+        if (this.files.length > 0) {
+            fileText.textContent = this.files[0].name;
+        } else {
+            fileText.textContent = '未选择文件';
+        }
+    });
+
+    // 提交导入表单
+    uploadForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        uploadError.style.display = 'none';
+        uploadSuccess.style.display = 'none';
+
+        const file = excelFile.files[0];
+        if (!file) {
+            uploadError.textContent = '请选择要导入的Excel文件！';
+            uploadError.style.display = 'block';
+            return;
+        }
+
+        // 校验文件类型
+        const fileType = file.name.split('.').pop().toLowerCase();
+        if (fileType !== 'xlsx' && fileType !== 'xls') {
+            uploadError.textContent = '仅支持.xlsx/.xls格式的Excel文件！';
+            uploadError.style.display = 'block';
+            return;
+        }
+
+        // 校验文件大小（10MB）
+        if (file.size > 10 * 1024 * 1024) {
+            uploadError.textContent = '文件大小不能超过10MB！';
+            uploadError.style.display = 'block';
+            return;
+        }
+
+        // 构造FormData
+        const formData = new FormData(this);
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        loadingOverlay.style.display = 'flex';
+        // 禁用表单按钮，防止重复提交
+        document.querySelector('#uploadForm button[type="submit"]').disabled = true;
+        // AJAX提交
+        fetch("{% url 'data_upload_ajax' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
-
-            // 校验文件类型
-            const fileType = file.name.split('.').pop().toLowerCase();
-            if (fileType !== 'xlsx' && fileType !== 'xls') {
-                uploadError.textContent = '仅支持.xlsx/.xls格式的Excel文件！';
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                uploadSuccess.textContent = data.message;
+                uploadSuccess.style.display = 'block';
+                setTimeout(() => {
+                    closeUploadModalFunc();
+                    showToast(data.message);
+                    window.location.reload();
+                }, 1500);
+            } else {
+                uploadError.textContent = data.message;
                 uploadError.style.display = 'block';
-                return;
             }
-
-            // 校验文件大小（10MB）
-            if (file.size > 10 * 1024 * 1024) {
-                uploadError.textContent = '文件大小不能超过10MB！';
-                uploadError.style.display = 'block';
-                return;
-            }
-
-            // 构造FormData
-            const formData = new FormData(this);
-            const loadingOverlay = document.getElementById('loadingOverlay');
-            loadingOverlay.style.display = 'flex';
-            // 禁用表单按钮，防止重复提交
-            document.querySelector('#uploadForm button[type="submit"]').disabled = true;
-            // AJAX提交
-            fetch("{% url 'data_upload_ajax' %}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    uploadSuccess.textContent = data.message;
-                    uploadSuccess.style.display = 'block';
-                    setTimeout(() => {
-                        closeUploadModalFunc();
-                        showToast(data.message);
-                        window.location.reload();
-                    }, 1500);
-                } else {
-                    uploadError.textContent = data.message;
-                    uploadError.style.display = 'block';
-                }
-            })
-            .catch(error => {
-                uploadError.textContent = '导入失败：网络错误，请重试！';
-                uploadError.style.display = 'block';
-                console.error('Upload Error:', error);
-            })
-            .finally(() => {
+        })
+        .catch(error => {
+            uploadError.textContent = '导入失败：网络错误，请重试！';
+            uploadError.style.display = 'block';
+            console.error('Upload Error:', error);
+        })
+        .finally(() => {
             // ✅ 无论成功失败，都隐藏加载遮罩，解锁界面
             loadingOverlay.style.display = 'none';
             document.querySelector('#uploadForm button[type="submit"]').disabled = false;
-             });
         });
+    });
 
-        // ==================== 编辑数据弹窗逻辑 ====================
-        const editButtons = document.querySelectorAll('.edit-btn');
-        const editModal = document.getElementById('editModal');
-        const closeEditModal = document.getElementById('closeEditModal');
-        const cancelEdit = document.getElementById('cancelEdit');
-        const editForm = document.getElementById('editForm');
-        const editError = document.getElementById('editError');
+    // ==================== 编辑数据弹窗逻辑 ====================\n
+    const editButtons = document.querySelectorAll('.edit-btn');
+    const editModal = document.getElementById('editModal');
+    const closeEditModal = document.getElementById('closeEditModal');
+    const cancelEdit = document.getElementById('cancelEdit');
+    const editForm = document.getElementById('editForm');
+    const editError = document.getElementById('editError');
 
-        // 打开编辑弹窗
-        editButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                editError.style.display = 'none';
-                // 填充数据
-                const id = this.getAttribute('data-id');
-                const city = this.getAttribute('data-city');
-                const area = this.getAttribute('data-area');
-                const title = this.getAttribute('data-title');
-                const houseType = this.getAttribute('data-house-type');
-                const areaSize = this.getAttribute('data-area-size');
-                const unitPrice = this.getAttribute('data-unit-price');
-                const totalPrice = this.getAttribute('data-total-price');
-                const decoration = this.getAttribute('data-decoration');
+    // 关闭编辑弹窗
+    function closeEditModalFunc() {
+        editModal.style.display = 'none';
+    }
 
-                document.getElementById('editId').value = id;
-                document.getElementById('editCity').value = city;
-                document.getElementById('editArea').value = area;
-                document.getElementById('editCommunity').value = title;
-                document.getElementById('editHouseType').value = houseType;
-                document.getElementById('editAreaSize').value = areaSize;
-                document.getElementById('editUnitPrice').value = unitPrice;
-                document.getElementById('editTotalPrice').value = totalPrice;
-                document.getElementById('editDecoration').value = decoration;
-
-                editModal.style.display = 'flex';
-            });
-        });
-
-        // 关闭编辑弹窗
-        function closeEditModalFunc() {
-            editModal.style.display = 'none';
-        }
-        closeEditModal.addEventListener('click', closeEditModalFunc);
-        cancelEdit.addEventListener('click', closeEditModalFunc);
-        editModal.addEventListener('click', function(e) {
-            if (e.target === editModal) closeEditModalFunc();
-        });
-
-        // 提交编辑表单
-        editForm.addEventListener('submit', function(e) {
-            e.preventDefault();
+    // 打开编辑弹窗
+    editButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
             editError.style.display = 'none';
+            // 填充数据
+            const id = this.getAttribute('data-id');
+            const city = this.getAttribute('data-city');
+            const area = this.getAttribute('data-area');
+            const title = this.getAttribute('data-title');
+            const houseType = this.getAttribute('data-house-type');
+            const areaSize = this.getAttribute('data-area-size');
+            const orientation = this.getAttribute('data-orientation');
+            const floorInfo = this.getAttribute('data-floor_info');
+            const houseAge = this.getAttribute('data-house_age');
+            const structureType = this.getAttribute('data-structure_type');
+            const unitPrice = this.getAttribute('data-unit-price');
+            const totalPrice = this.getAttribute('data-total_price');
+            const decoration = this.getAttribute('data-decoration');
 
-            // 前端校验
-            const areaSize = document.getElementById('editAreaSize').value;
-            const unitPrice = document.getElementById('editUnitPrice').value;
-            if (areaSize <= 0) {
-                editError.textContent = '面积必须大于0！';
-                editError.style.display = 'block';
-                return;
-            }
-            if (unitPrice <= 0) {
-                editError.textContent = '单价必须大于0！';
-                editError.style.display = 'block';
-                return;
-            }
+            document.getElementById('editId').value = id;
+            document.getElementById('editCity').value = city;
+            document.getElementById('editArea').value = area;
+            document.getElementById('editCommunity').value = title;
+            document.getElementById('editHouseType').value = houseType;
+            document.getElementById('editAreaSize').value = areaSize;
+            document.getElementById('editOrientation').value = orientation;
+            document.getElementById('editFloorInfo').value = floorInfo;
+            document.getElementById('editHouseAge').value = houseAge;
+            document.getElementById('editStructureType').value = structureType;
+            document.getElementById('editUnitPrice').value = unitPrice;
+            document.getElementById('editTotalPrice').value = totalPrice;
+            document.getElementById('editDecoration').value = decoration;
+            // 1. 填充总价（必填）
+            document.getElementById('editTotalPrice').value = totalPrice;
+            // 2. 填充单价（禁用状态，仅展示）
+            document.getElementById('editUnitPrice').value = unitPrice;
+            // 3. 给隐藏单价输入框赋值（用于提交）
+            document.getElementById('hiddenUnitPrice').value = unitPrice;
 
-            // 自动计算总价（如果未填写）
+            // 4. 监听总价变化，自动计算单价
             const totalPriceInput = document.getElementById('editTotalPrice');
-            if (!totalPriceInput.value) {
-                const totalPrice = (areaSize * unitPrice / 10000).toFixed(1);
-                totalPriceInput.value = totalPrice;
+            const areaSizeInput = document.getElementById('editAreaSize');
+            const unitPriceInput = document.getElementById('editUnitPrice');
+            const hiddenUnitPriceInput = document.getElementById('hiddenUnitPrice');
+
+            // 定义计算函数
+            function calculateUnitPrice() {
+                const totalPrice = parseFloat(totalPriceInput.value) || 0;
+                const areaSize = parseFloat(areaSizeInput.value) || 0;
+                if (totalPrice > 0 && areaSize > 0) {
+                    // 单价 = 总价(万元) * 10000 / 面积(㎡)
+                    const unitPrice = (totalPrice * 10000 / areaSize).toFixed(2);
+                    unitPriceInput.value = unitPrice; // 展示用
+                    hiddenUnitPriceInput.value = unitPrice; // 提交用
+                } else {
+                    unitPriceInput.value = 0;
+                    hiddenUnitPriceInput.value = 0;
+                }
             }
 
-            // 构造FormData
-            const formData = new FormData(this);
+            // 绑定监听事件（总价变化时计算）
+            totalPriceInput.removeEventListener('input', calculateUnitPrice); // 先移除避免重复绑定
+            totalPriceInput.addEventListener('input', calculateUnitPrice);
 
-            // AJAX提交
-            fetch("{% url 'data_edit_ajax' %}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
+            // 回显省市（根据城市反查省份）
+            let targetProvince = '';
+            for (const [province, cities] of Object.entries(provinceCityData)) {
+                if (cities.includes(city)) {
+                    targetProvince = province;
+                    break;
                 }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    closeEditModalFunc();
-                    showToast(data.message);
-                    window.location.reload();
-                } else {
-                    editError.textContent = data.message;
-                    editError.style.display = 'block';
-                }
-            })
-            .catch(error => {
-                editError.textContent = '修改失败：网络错误，请重试！';
-                editError.style.display = 'block';
-                console.error('Edit Error:', error);
-            });
+            }
+            // 设置省份并触发联动
+            editProvince.value = targetProvince;
+            editProvince.dispatchEvent(new Event('change'));
+            // 延迟设置城市（确保城市选项已加载）
+            setTimeout(() => {
+                editCity.value = city;
+            }, 50);
+            editModal.style.display = 'flex';
         });
+    });
 
-        // ==================== 删除数据弹窗逻辑 ====================
-        const deleteButtons = document.querySelectorAll('.delete-btn');
-        const deleteModal = document.getElementById('deleteModal');
-        const closeDeleteModal = document.getElementById('closeDeleteModal');
-        const cancelDelete = document.getElementById('cancelDelete');
-        const confirmDelete = document.getElementById('confirmDelete');
-        const deleteCommunity = document.getElementById('deleteCommunity');
+    // 关闭编辑弹窗事件绑定
+    closeEditModal.addEventListener('click', closeEditModalFunc);
+    cancelEdit.addEventListener('click', closeEditModalFunc);
+    editModal.addEventListener('click', function(e) {
+        if (e.target === editModal) closeEditModalFunc();
+    });
 
-        // 打开删除弹窗
-        deleteButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                currentDeleteId = this.getAttribute('data-id');
-                const title = this.getAttribute('data-title');
-                deleteCommunity.textContent = title;
-                deleteModal.style.display = 'flex';
-            });
-        });
+    // 提交编辑表单
+    editForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        editError.style.display = 'none';
 
-        // 关闭删除弹窗
-        function closeDeleteModalFunc() {
-            deleteModal.style.display = 'none';
-            currentDeleteId = '';
+        // 前端校验
+        const unitPrice = document.getElementById('editUnitPrice').value;
+        if (unitPrice <= 0) {
+            editError.textContent = '单价必须大于0！';
+            editError.style.display = 'block';
+            return;
         }
-        closeDeleteModal.addEventListener('click', closeDeleteModalFunc);
-        cancelDelete.addEventListener('click', closeDeleteModalFunc);
-        deleteModal.addEventListener('click', function(e) {
-            if (e.target === deleteModal) closeDeleteModalFunc();
-        });
 
-        // 确认删除
-        confirmDelete.addEventListener('click', function() {
-            if (!currentDeleteId) return;
+        // 自动计算总价（如果未填写）
+        const totalPriceInput = document.getElementById('editTotalPrice');
+        if (!totalPriceInput.value) {
+            const areaSize = document.getElementById('editAreaSize').value;
+            const totalPrice = (areaSize * unitPrice / 10000).toFixed(1);
+            totalPriceInput.value = totalPrice;
+        }
 
-            const formData = new FormData();
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            formData.append('id', currentDeleteId);
+        // 构造FormData
+        const formData = new FormData(this);
 
-            fetch("{% url 'data_delete_ajax' %}", {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                closeDeleteModalFunc();
-                if (data.success) {
-                    showToast(data.message);
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 1000);
-                } else {
-                    showToast(data.message, false);
-                }
-            })
-            .catch(error => {
-                closeDeleteModalFunc();
-                showToast('删除失败：网络错误！', false);
-                console.error('Delete Error:', error);
-            });
-        });
-
-        // ==================== 筛选和重置逻辑 ====================
-        const filterBtn = document.getElementById('filterBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        const searchKeyword = document.getElementById('searchKeyword');
-        const cityFilter = document.getElementById('cityFilter');
-        const decorateFilter = document.getElementById('decorateFilter');
-
-        // 筛选
-        filterBtn.addEventListener('click', function() {
-            // 构造筛选参数
-            const params = new URLSearchParams();
-            const keyword = searchKeyword.value.trim();
-            const city = cityFilter.value;
-            const decoration = decorateFilter.value;
-            // 2. 只添加非空参数（避免URL冗余）
-            if (keyword) params.append('keyword', keyword);
-            if (city) params.append('city', city);
-            if (decoration) params.append('decoration', decoration);
-            params.append('page', 1); // 筛选后默认回到第1页
-
-            // 3. 跳转到当前页面（后端admin_data_manage会根据参数筛选）
-            window.location.href = `{% url 'admin_data_manage' %}?${params.toString()}`;
-
-        });
-        // 回车搜索
-        searchKeyword.addEventListener('keyup', function(e) {
-            if (e.key === 'Enter') {
-                filterBtn.click();
+        // AJAX提交
+        fetch("{% url 'data_edit_ajax' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                closeEditModalFunc();
+                showToast(data.message);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                editError.textContent = data.message;
+                editError.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            editError.textContent = '修改失败：网络错误，请重试！';
+            editError.style.display = 'block';
+            console.error('Edit Error:', error);
         });
-        // 重置筛选
-        resetBtn.addEventListener('click', function() {
-             // 1. 先显示提示信息
-            showToast('筛选条件已重置');
+    });
 
-            // 2. 延迟 1000 毫秒（1秒）后再执行刷新逻辑
-            // 这样用户能完整看到提示框，再跳转到刷新后的页面
-            setTimeout(function() {
-                // 重置 URL 参数（如果需要清空筛选条件跳转）
-                window.location.href = "{% url 'admin_data_manage' %}";
+    // ==================== 删除数据弹窗逻辑 ====================\n
+    const deleteButtons = document.querySelectorAll('.delete-btn');
+    const deleteModal = document.getElementById('deleteModal');
+    const closeDeleteModal = document.getElementById('closeDeleteModal');
+    const cancelDelete = document.getElementById('cancelDelete');
+    const confirmDelete = document.getElementById('confirmDelete');
+    const deleteCommunity = document.getElementById('deleteCommunity');
 
-                // 或者直接刷新当前页面（上一行代码已包含跳转，通常无需再 reload）
-                // window.location.reload();
-            }, 1000);
+    // 关闭删除弹窗
+    function closeDeleteModalFunc() {
+        deleteModal.style.display = 'none';
+        currentDeleteId = '';
+    }
+
+    // 打开删除弹窗
+    deleteButtons.forEach(btn => {
+        btn.addEventListener('click', function() {
+            currentDeleteId = this.getAttribute('data-id');
+            const title = this.getAttribute('data-title');
+            deleteCommunity.textContent = title;
+            deleteModal.style.display = 'flex';
         });
+    });
 
-        // ==================== 导出数据逻辑 ====================
-        const exportBtn = document.getElementById('exportBtn');
-        exportBtn.addEventListener('click', function() {
-            const params = new URLSearchParams();
-            const keyword = searchKeyword.value.trim();
-            const city = cityFilter.value;
-            const decoration = decorateFilter.value;
-            if (keyword) params.append('keyword', keyword);
-            if (city) params.append('city', city);
-            if (decoration) params.append('decoration', decoration);
-            window.location.href = "{% url 'data_export' %}?" + params.toString();
-            showToast('正在导出数据，请稍候...');
+    // 关闭删除弹窗事件绑定
+    closeDeleteModal.addEventListener('click', closeDeleteModalFunc);
+    cancelDelete.addEventListener('click', closeDeleteModalFunc);
+    deleteModal.addEventListener('click', function(e) {
+        if (e.target === deleteModal) closeDeleteModalFunc();
+    });
+
+    // 确认删除
+    confirmDelete.addEventListener('click', function() {
+        if (!currentDeleteId) return;
+
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        formData.append('id', currentDeleteId);
+
+        fetch("{% url 'data_delete_ajax' %}", {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            closeDeleteModalFunc();
+            if (data.success) {
+                showToast(data.message);
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                showToast(data.message, false);
+            }
+        })
+        .catch(error => {
+            closeDeleteModalFunc();
+            showToast('删除失败：网络错误！', false);
+            console.error('Delete Error:', error);
         });
+    });
 
-        // ==================== 下载模板逻辑 ====================
-        const templateBtn = document.getElementById('templateBtn');
-        templateBtn.addEventListener('click', function() {
-            window.location.href = "{% url 'data_download_template' %}";
-            showToast('正在下载Excel模板...');
-        });
+    // ==================== 筛选和重置逻辑 ====================\n
+    const filterBtn = document.getElementById('filterBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const searchKeyword = document.getElementById('searchKeyword');
+    const cityFilter = document.getElementById('cityFilter');
+    const decorateFilter = document.getElementById('decorateFilter');
 
-        // ==================== 分页逻辑 ====================
-        const prevPage = document.getElementById('prevPage');
-        const nextPage = document.getElementById('nextPage');
-        const paginationBtns = document.querySelectorAll('.pagination button:not(#prevPage):not(#nextPage)');
+    // 筛选
+    filterBtn.addEventListener('click', function() {
+        // 构造筛选参数
+        const params = new URLSearchParams();
+        const keyword = searchKeyword.value.trim();
+        const city = cityFilter.value;
+        const decoration = decorateFilter.value;
+        // 2. 只添加非空参数（避免URL冗余）
+        if (keyword) params.append('keyword', keyword);
+        if (city) params.append('city', city);
+        if (decoration) params.append('decoration', decoration);
+        params.append('page', 1); // 筛选后默认回到第1页
 
-        // 分页按钮点击（示例）
+        // 3. 跳转到当前页面（后端admin_data_manage会根据参数筛选）
+        window.location.href = `{% url 'admin_data_manage' %}?${params.toString()}`;
+    });
+
+    // 回车搜索
+    searchKeyword.addEventListener('keyup', function(e) {
+        if (e.key === 'Enter') {
+            filterBtn.click();
+        }
+    });
+
+    // 重置筛选
+    resetBtn.addEventListener('click', function() {
+        // 1. 先显示提示信息
+        showToast('筛选条件已重置');
+
+        // 2. 延迟 1000 毫秒（1秒）后再执行刷新逻辑
+        // 这样用户能完整看到提示框，再跳转到刷新后的页面
+        setTimeout(function() {
+            // 重置 URL 参数（如果需要清空筛选条件跳转）
+            window.location.href = "{% url 'admin_data_manage' %}";
+        }, 1000);
+    });
+
+    // ==================== 导出数据逻辑 ====================\n
+    const exportBtn = document.getElementById('exportBtn');
+    exportBtn.addEventListener('click', function() {
+        const params = new URLSearchParams();
+        const keyword = searchKeyword.value.trim();
+        const city = cityFilter.value;
+        const decoration = decorateFilter.value;
+        if (keyword) params.append('keyword', keyword);
+        if (city) params.append('city', city);
+        if (decoration) params.append('decoration', decoration);
+        window.location.href = "{% url 'data_export' %}?" + params.toString();
+        showToast('正在导出数据，请稍候...');
+    });
+
+    // ==================== 下载模板逻辑 ====================\n
+    const templateBtn = document.getElementById('templateBtn');
+    templateBtn.addEventListener('click', function(e) {
+        e.preventDefault();
+        window.location.href = "{% url 'data_download_template' %}";
+        showToast('正在下载Excel模板...');
+    });
+
+    // ==================== 分页逻辑 ====================\n
+    const prevPage = document.getElementById('prevPage');
+    const nextPage = document.getElementById('nextPage');
+    const paginationBtns = document.querySelectorAll('.pagination button:not(#prevPage):not(#nextPage)');
+
+    // 分页按钮点击（示例）
+    if (paginationBtns.length > 0) {
         paginationBtns.forEach(btn => {
             btn.addEventListener('click', function() {
                 paginationBtns.forEach(b => b.classList.remove('active'));
@@ -1010,19 +1131,20 @@
                 showToast('已切换到第' + this.textContent + '页');
             });
         });
+    }
 
-        // 上一页/下一页
+    // 上一页/下一页（做存在性判断，避免找不到元素报错）
+    if (prevPage) {
         prevPage.addEventListener('click', function() {
             showToast('已是第一页', false);
         });
-
+    }
+    if (nextPage) {
         nextPage.addEventListener('click', function() {
             // 实际项目中切换到下一页
             showToast('已切换到第2页');
         });
-    document.getElementById('templateBtn').addEventListener('click', function(e) {
-    e.preventDefault();
-    window.location.href = "{% url 'data_download_template' %}";
+    }
 });
     </script>
 

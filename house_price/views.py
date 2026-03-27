@@ -1,3 +1,6 @@
+from datetime import datetime
+import urllib.parse
+
 import pandas as pd
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import make_password
@@ -12,7 +15,7 @@ from openpyxl import Workbook
 
 from .models import User,HousePriceData
 from django.template.loader import render_to_string
-
+from django.db.models import F, ExpressionWrapper, DecimalField
 from .utils import clean_area, clean_house_age, clean_total_price
 
 #模板下载
@@ -39,18 +42,17 @@ def data_download_template(request):
     for row in sample_data:
         ws.append(row)
 
-    # 生成响应
     response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response["Content-Disposition"] = 'attachment; filename="房价数据导入模板.xlsx"'
+
+
+    filename = "房价数据批量导入模板.xlsx"
+    encoded_filename = urllib.parse.quote(filename)
+    response[
+        "Content-Disposition"] = f"attachment; filename=\"{encoded_filename}\"; filename*=UTF-8''{encoded_filename}"
+
     wb.save(response)
     return response
 
-#数据下载
-@login_required
-def data_download_template(request):
-    if request.user.role != 2:
-        messages.error(request, "仅管理员可访问")
-        return redirect('/login/')
 
 #数据导出
 @login_required
@@ -58,6 +60,81 @@ def data_export(request):
     if request.user.role != 2:
         messages.error(request, "仅管理员可访问")
         return redirect('/login/')
+     # 1. 获取前端传递的筛选参数（和admin_data_manage完全一致）
+    keyword = request.GET.get('keyword', '').strip()
+    city = request.GET.get('city', '')
+    decoration = request.GET.get('decoration', '')
+
+    # 2. 构造筛选条件（和数据管理页面的筛选逻辑完全同步）
+    queryset = HousePriceData.objects.all().order_by("id")
+    # 关键词筛选：标题/小区名称模糊匹配
+    if keyword:
+        queryset = queryset.filter(Q(title__icontains=keyword) | Q(area__icontains=keyword))
+    # 城市筛选
+    if city:
+        queryset = queryset.filter(city=city)
+    # 装修类型筛选
+    if decoration:
+        queryset = queryset.filter(decoration=decoration)
+        # 3. 生成Excel文件（导出筛选后的全部数据，不是仅当前分页）
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "房价数据导出"
+
+    # 定义导出表头（包含用户关心的所有字段）
+    headers = [
+        "ID", "城市", "小区/标题", "区域", "户型", "面积(㎡)",
+        "朝向", "装修情况", "楼层信息", "房龄", "建筑结构",
+        "总价(万元)", "单价(元/㎡)", "录入时间"
+    ]
+    ws.append(headers)
+
+    # 4. 填充筛选后的数据（计算单价，和前端展示逻辑一致）
+    for house in queryset:
+        # 计算单价：总价(万元)*10000 / 面积(㎡)，保留2位小数
+        unit_price = 0.00
+        if house.area_size > 0 and house.total_price > 0:
+            unit_price = round((house.total_price * 10000) / house.area_size, 2)
+        row_data = [
+            house.id,
+            house.city,
+            house.title,
+            house.area,
+            house.house_type,
+            round(house.area_size, 2),
+            house.orientation if house.orientation else "未填写",
+            house.decoration if house.decoration else "未填写",
+            house.floor_info if house.floor_info else "未填写",
+            house.house_age if house.house_age else "未填写",
+            house.structure_type if house.structure_type else "未填写",
+            round(house.total_price, 2),
+            unit_price,
+            house.create_time.strftime("%Y-%m-%d %H:%M:%S") if house.create_time else "未填写"
+        ]
+        ws.append(row_data)
+    # 5. 构造下载响应（解决中文文件名+筛选标识）
+    # 生成带筛选条件的文件名（方便用户识别）
+    filter_suffix = ""
+    if keyword:
+        filter_suffix += f"_关键词-{keyword}"
+    if city:
+        filter_suffix += f"_城市-{city}"
+    if decoration:
+        filter_suffix += f"_装修-{decoration}"
+    # 基础文件名：时间戳+筛选条件
+    base_filename = f"房价数据导出_{datetime.now().strftime('%Y%m%d_%H%M%S')}{filter_suffix}.xlsx"
+    # 中文文件名URL编码（兼容所有浏览器）
+    encoded_filename = urllib.parse.quote(base_filename)
+
+    # 设置响应头
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    response[
+        "Content-Disposition"] = f"attachment; filename=\"{encoded_filename}\"; filename*=UTF-8''{encoded_filename}"
+
+    # 保存Excel到响应流
+    wb.save(response)
+    return response
+
 
 #数据删除
 @login_required
@@ -221,6 +298,17 @@ def admin_data_manage(request):
     keyword=request.GET.get('keyword',"").strip()
     city=request.GET.get('city',"")
     decoration=request.GET.get('decoration',"")
+    sort_by = request.GET.get('sort', 'id')  # 默认按id排序
+    sort_dir = request.GET.get('dir', 'asc')  # 默认升序
+    # 允许排序的字段（防止SQL注入）
+    allowed_sort_fields = ['area_size', 'unit_price', 'house_age', 'total_price', 'create_time', 'id']
+    if sort_by not in allowed_sort_fields:
+        sort_by = 'id'
+    # 拼接排序方向
+    if sort_dir == 'desc':
+        order_by = f'-{sort_by}'
+    else:
+        order_by = sort_by
     # 2. 构造查询条件
     queryset = HousePriceData.objects.all().order_by("id")
     if keyword:
@@ -232,7 +320,26 @@ def admin_data_manage(request):
         queryset = queryset.filter(city=city)
     if decoration:
         queryset = queryset.filter(decoration=decoration)
+    allowed_sort_fields = ['area_size', 'house_age', 'total_price', 'create_time', 'id']
+    # 校验排序字段合法性
+    if sort_by not in allowed_sort_fields and sort_by != 'unit_price':
+        sort_by = 'id'
 
+    # 单价排序特殊处理（数据库层面计算）
+    if sort_by == 'unit_price':
+        queryset = queryset.annotate(
+            calculated_unit_price=ExpressionWrapper(
+                (F('total_price') * 10000) / F('area_size'),
+                output_field=DecimalField(max_digits=10, decimal_places=2)
+            )
+        )
+        #拼接排序方向
+        order_by = f'{"-" if sort_dir == "desc" else ""}calculated_unit_price'
+    else:
+        # 普通字段排序
+        order_by = f'{"-" if sort_dir == "desc" else ""}{sort_by}'
+
+    queryset = queryset.order_by(order_by)
     # 3. 分页（每页10条）
     paginator = Paginator(queryset, 10)
     page_num = request.GET.get("page", 1)  # 当前页码
@@ -264,7 +371,7 @@ def admin_data_manage(request):
     house_data_list = []
     for house in page_obj:
         # 计算单价：总价(万元)*10000 / 面积(㎡)，保留2位小数
-        unit_price = 0.0  # 默认值
+        unit_price = 0.00  # 默认值
         if house.area_size > 0 and house.total_price > 0:
             unit_price = round((house.total_price * 10000) / house.area_size, 2)
 
@@ -276,13 +383,13 @@ def admin_data_manage(request):
             "area": house.area,
             "title": house.title,
             "house_type": house.house_type,
-            "area_size": house.area_size,
+            "area_size": round(house.area_size, 2),
             "orientation": house.orientation,
             "decoration": house.decoration,
             "floor_info": house.floor_info,
             "house_age": house.house_age,
             "structure_type": house.structure_type,
-            "total_price":house.total_price,
+            "total_price":round(house.total_price, 2),
             "create_time": house.create_time,
             # 新增：后端计算好的单价
             "unit_price": unit_price
@@ -294,12 +401,14 @@ def admin_data_manage(request):
         "page_obj": page_obj,  # 分页后的数据
         "keyword": keyword,  # 回显搜索词
         "house_data_list": house_data_list,
-        "city": city,  # 回显城市筛选
+        "city_filter": city,  # 回显城市筛选
         "decoration": decoration,  # 回显装修筛选
         # 城市列表（用于筛选下拉框）
-        "city_list": HousePriceData.objects.values_list("city", flat=True).distinct(),
+        "city_list": sorted(HousePriceData.objects.values_list("city", flat=True).distinct()),
         "page_range": page_range,  # 新增：精简后的页码列表
         "decoration_list":["精装", "简装", "毛坯"],
+        "sort_by": sort_by,
+        "sort_dir": sort_dir
     }
     return render(request, "admin_data_manage.html", context)
 # AJAX版新增管理员
