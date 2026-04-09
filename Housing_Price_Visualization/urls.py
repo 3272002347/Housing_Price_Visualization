@@ -19,6 +19,7 @@ from django.urls import path,include
 from house_price import views
 urlpatterns = [
     path('admin_index/',  views.admin_index, name='admin_index'),
-    path('',include('house_price.urls'))
+    path('',include('house_price.urls')),
+    path('api/house-price/', include('house_price.urls'))
 ]
 

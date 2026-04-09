@@ -8,7 +8,13 @@ urlpatterns = [
     path('logout/', views.user_logout, name='logout'),  # 退出登录
     path('', views.user_login, name='login'),  # 登录页
     path('register/', views.register, name='register'), # 注册页
-# 后台管理路由
+    # 房价详情页
+    path('house-detail/', views.house_detail, name='house_detail'),
+    # 数据分析页
+    path('data-analysis/', views.data_analysis, name='data_analysis'),
+
+
+    # 后台管理路由
     path("admin_index/", views.admin_index, name="admin_index"),          # 后台首页
     path("admin_user_manage/", views.admin_user_manage, name="admin_user_manage"),  # 用户管理
     path("admin_user_edit_ajax/", views.admin_user_edit_ajax, name="admin_user_edit_ajax"),

@@ -83,7 +83,8 @@ DATABASES = {
         'HOST':'127.0.0.1',
         'PORT':'3306',
         'OPTIONS': {
-            'charset':'utf8mb4'
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES', innodb_strict_mode=1, time_zone='+8:00'",
+            'charset': 'utf8mb4',
         }
     }
 }

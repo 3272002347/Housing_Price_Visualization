@@ -1,22 +1,375 @@
-from datetime import datetime
+from datetime import datetime,timedelta
 import urllib.parse
+
+import json
+from decimal import Decimal
 
 import pandas as pd
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.hashers import make_password
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
-from django.db import transaction
-from django.db.models import Q
+from django.db import transaction,models
+from django.db.models import Avg, Max, Min, Count, F, ExpressionWrapper, DecimalField, Q,Case,When
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.http import HttpResponse,JsonResponse
+from django.utils import timezone
+from django.utils.safestring import mark_safe
 from openpyxl import Workbook
-
+from django.db.models.functions import ExtractYear, ExtractMonth, TruncMonth,Concat
 from .models import User,HousePriceData
+from .common import get_valid_chart_config  # 导入公共配置
 from django.template.loader import render_to_string
-from django.db.models import F, ExpressionWrapper, DecimalField
+from django.db.models import F, ExpressionWrapper, DecimalField, CharField, Value as V
 from .utils import clean_area, clean_house_age, clean_total_price
+
+try:
+    # Django <4.0 用pytz
+    import pytz
+    shanghai_tz = pytz.timezone('Asia/Shanghai')
+except ImportError:
+    # Django >=4.0 用标准库zoneinfo
+    from zoneinfo import ZoneInfo
+    shanghai_tz = ZoneInfo('Asia/Shanghai')
+
+class DecimalEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            # 把Decimal转为浮点数（前端ECharts需要数值类型）
+            return float(obj)
+        return super().default(obj)
+
+
+def index(request):
+    """首页 - 核心概览+趋势监控"""
+    if not request.user.is_authenticated:
+        return redirect('/login/')
+    # 1. 读取图表配置（核心：动态获取配置）
+    mode = request.GET.get("mode", "detailed")
+    chart_config, current_mode = get_valid_chart_config(mode)
+    trend_month = 6 if current_mode == 'simple' else 24
+    # 2. 基础查询（保留有效数据）
+    end_time = timezone.now()
+    start_time = end_time - timedelta(days=trend_month*30)
+    start_time = start_time.replace(hour=0, minute=0, second=0, microsecond=0)
+    base_qs = HousePriceData.objects.filter(
+        area_size__gt=0, total_price__gt=0,
+        create_time__isnull=False, create_time__gte=start_time
+    ).annotate(
+        unit_price=ExpressionWrapper(
+            (F('total_price') * 10000) / F('area_size'),
+            output_field=DecimalField(max_digits=12, decimal_places=2)
+        )
+    )
+    # 2. 核心指标
+    total_houses = base_qs.count()  # 改用base_qs.count()，排除无效数据
+    avg_unit_price = base_qs.aggregate(avg=Avg('unit_price'))['avg'] or 0
+    avg_total_price = base_qs.aggregate(avg=Avg('total_price'))['avg'] or 0
+
+    # 均价最高城市
+    top_city_qs = base_qs.values('city').annotate(
+        avg_price=Avg('unit_price')
+    ).order_by('-avg_price')
+    top_city = top_city_qs.first() or {}
+
+    trend_data = []
+    try:
+        raw_data = base_qs.values('create_time', 'unit_price')
+        # 手动分组：按年月统计
+        month_group = {}
+        for item in raw_data:
+            utc_time = item['create_time']
+            local_time = utc_time.astimezone(shanghai_tz)
+            year = local_time.year
+            month = local_time.month
+            key = f"{year}-{month:02d}"  # 如2026-04
+            # 累加数据
+            if key not in month_group:
+                month_group[key] = {'sum_price': 0, 'count': 0}
+            month_group[key]['sum_price'] += float(item['unit_price'])
+            month_group[key]['count'] += 1
+        # 生成趋势数据并按配置的月份数截取（取最后N个月）
+        sorted_keys = sorted(month_group.keys())
+        recent_keys = sorted_keys[-trend_month:] if sorted_keys else []  # 动态截取
+        # 步骤2：计算均价并生成trend_data
+        for key in recent_keys:
+            sum_price = month_group[key]['sum_price']
+            count = month_group[key]['count']
+            avg_price = round(sum_price / count, 2) if count > 0 else 0
+            trend_data.append({
+                'month': key,
+                'avg_price': avg_price,
+                'count': count
+            })
+    except Exception as e:
+        print(f"趋势数据错误：{str(e)}")
+
+    # 4. 城市TOP5
+    city_top5_list = []
+    try:
+        city_top5_qs = base_qs.values('city').annotate(
+            avg_price=Avg('unit_price'),
+            count=Count('id')
+        ).filter(count__gt=0, city__isnull=False).order_by('-avg_price')[:5]
+        city_top5_list = list(city_top5_qs)
+    except Exception as e:
+        print(f"城市TOP5错误：{str(e)}")
+    chart_config_js = chart_config.copy()
+    # 把Python的True/False转成JS的true/false
+    chart_config_js['show_label'] = True if chart_config_js['show_label'] else False
+    chart_config_js['show_legend'] = True if chart_config_js['show_legend'] else False
+    # 5. 上下文
+    context = {
+        'user': request.user,
+        'total_houses': total_houses,
+        'avg_unit_price': round(float(avg_unit_price), 2) if avg_unit_price else 0,
+        'avg_total_price': round(float(avg_total_price), 2) if avg_total_price else 0,
+        'top_city': top_city.get('city', '无'),
+        'top_city_price': round(float(top_city.get('avg_price', 0)), 2) if top_city.get('avg_price') else 0,
+        'trend_data': mark_safe(json.dumps(trend_data, cls=DecimalEncoder)),
+        'city_top5': mark_safe(json.dumps([
+            {
+                'city': item.get('city', ''),
+                'price': round(float(item.get('avg_price', 0)), 2) if item.get('avg_price') else 0,
+                'count': item.get('count', 0)
+            }
+            for item in city_top5_list
+        ], cls=DecimalEncoder)),
+        'chart_config':  mark_safe(json.dumps(chart_config_js, cls=DecimalEncoder)),       # 模式配置（供前端渲染图表）
+        'current_mode': current_mode,       # 当前模式（供前端高亮按钮）
+        'trend_month': trend_month,
+
+    }
+    return render(request, 'index.html', context)
+
+
+def data_analysis(request):
+    """数据分析页 - 多维度图表数据接口+页面渲染（对齐index函数规范）"""
+    if not request.user.is_authenticated:
+        return redirect('/login/')
+
+    # 1. 模式配置（对齐index逻辑）
+    mode = request.GET.get("mode", "detailed")
+    chart_config, current_mode = get_valid_chart_config(mode)
+    trend_month = chart_config["trend_month"]
+
+    # 2. 筛选参数
+    selected_city = request.GET.get('city', 'all')
+
+    # 3. 基础查询（统一时间处理逻辑，对齐index）
+    end_time = timezone.now()
+    start_time = end_time - timedelta(days=trend_month * 30)
+    start_time = start_time.replace(hour=0, minute=0, second=0, microsecond=0)  # 统一时间精度
+    base_qs = HousePriceData.objects.filter(
+        area_size__gt=0,
+        total_price__gt=0,
+        create_time__isnull=False,
+        create_time__gte=start_time
+    ).annotate(
+        unit_price=ExpressionWrapper(
+            (F('total_price') * 10000) / F('area_size'),
+            output_field=DecimalField(max_digits=12, decimal_places=2)
+        )
+    )
+
+    # 4. 城市筛选
+    if selected_city != 'all' and selected_city.strip():
+        base_qs = base_qs.filter(city=selected_city.strip())
+
+    # 5. 维度数据查询（异常捕获+数据清洗，对齐index）
+    # 5.1 户型均价
+    house_type_price = []
+    try:
+        house_type_price = list(base_qs.values('house_type').annotate(
+            avg_price=Avg('unit_price'),
+            count=Count('id')
+        ).order_by('-avg_price'))
+        house_type_price = [item for item in house_type_price if item['house_type'] and item['count'] > 0]
+    except Exception as e:
+        print(f"户型均价查询错误：{str(e)}")
+
+    # 5.2 面积区间价格
+    area_ranges = [(0, 50), (50, 70), (70, 90), (90, 110), (110, 130), (130, 150), (150, 200), (200, float('inf'))]
+    area_range_price = []
+    try:
+        for min_area, max_area in area_ranges:
+            if max_area == float('inf'):
+                filter_qs = base_qs.filter(area_size__gte=min_area)
+                range_name = f'{min_area}㎡以上'
+            else:
+                filter_qs = base_qs.filter(area_size__gte=min_area, area_size__lt=max_area)
+                range_name = f'{min_area}-{max_area}㎡'
+
+            avg_price = filter_qs.aggregate(avg=Avg('unit_price'))['avg'] or 0
+            count = filter_qs.count()
+            area_range_price.append({
+                'range': range_name,
+                'avg_price': round(avg_price, 2),
+                'count': count
+            })
+    except Exception as e:
+        print(f"面积区间查询错误：{str(e)}")
+
+    # 5.3 装修类型价格
+    decoration_price = []
+    try:
+        decoration_price = list(base_qs.values('decoration').annotate(
+            avg_price=Avg('unit_price'),
+            count=Count('id')
+        ).order_by('-count'))
+        decoration_price = [item for item in decoration_price if item['decoration'] and item['count'] > 0]
+    except Exception as e:
+        print(f"装修类型查询错误：{str(e)}")
+
+    # 5.4 城市TOP10
+    city_price_top10 = []
+    try:
+        if selected_city == 'all':
+            city_price_top10 = list(base_qs.values('city').annotate(
+                avg_price=Avg('unit_price'),
+                count=Count('id')
+            ).filter(count__gt=0, city__isnull=False).order_by('-avg_price')[:10])
+    except Exception as e:
+        print(f"城市TOP10查询错误：{str(e)}")
+
+    # 5.5 单价区间数量
+    price_ranges = [(0, 5000), (5000, 10000), (10000, 15000), (15000, 20000), (20000, 30000), (30000, 50000),
+                    (50000, float('inf'))]
+    price_range_count = []
+    try:
+        for min_price, max_price in price_ranges:
+            if max_price == float('inf'):
+                filter_qs = base_qs.filter(unit_price__gte=min_price)
+                range_name = f'{min_price}元/㎡以上'
+            else:
+                filter_qs = base_qs.filter(unit_price__gte=min_price, unit_price__lt=max_price)
+                range_name = f'{min_price}-{max_price}元/㎡'
+
+            count = filter_qs.count()
+            price_range_count.append({
+                'range': range_name,
+                'count': count
+            })
+    except Exception as e:
+        print(f"单价区间查询错误：{str(e)}")
+
+    # 6. 城市列表
+    city_list = []
+    try:
+        city_list = list(
+            HousePriceData.objects.values_list('city', flat=True)
+            .distinct()
+            .order_by('city')
+        )
+        city_list = [city for city in city_list if city]  # 过滤空值
+    except Exception as e:
+        print(f"城市列表查询错误：{str(e)}")
+
+    # 7. 构造图表数据（统一Decimal格式化）
+    chart_data = {
+        'house_type': {
+            'x': [item['house_type'] for item in house_type_price],
+            'y': [round(float(item['avg_price']), 2) for item in house_type_price],
+            'count': [item['count'] for item in house_type_price]
+        },
+        'area_range': {
+            'x': [item['range'] for item in area_range_price],
+            'y': [round(float(item['avg_price']), 2) for item in area_range_price],
+            'count': [item['count'] for item in area_range_price]
+        },
+        'decoration': {
+            'names': [item['decoration'] for item in decoration_price],
+            'prices': [round(float(item['avg_price']), 2) for item in decoration_price],
+            'counts': [item['count'] for item in decoration_price]
+        },
+        'city_top10': {
+            'x': [item['city'] for item in city_price_top10],
+            'y': [round(float(item['avg_price']), 2) for item in city_price_top10]
+        },
+        'price_range': {
+            'x': [item['range'] for item in price_range_count],
+            'y': [item['count'] for item in price_range_count]
+        }
+    }
+
+    # 8. 配置JSON格式化（对齐index，转义布尔值）
+    chart_config_js = chart_config.copy()
+    chart_config_js['show_label'] = bool(chart_config_js['show_label'])
+    chart_config_js['show_legend'] = bool(chart_config_js['show_legend'])
+
+    # 9. 上下文（统一mark_safe+DecimalEncoder）
+    context = {
+        'user': request.user,
+        'city_list': city_list,
+        'selected_city': selected_city,
+        'chart_data_json': mark_safe(json.dumps(chart_data, cls=DecimalEncoder, ensure_ascii=False)),
+        'chart_config': mark_safe(json.dumps(chart_config_js, cls=DecimalEncoder)),  # 转JSON
+        'current_mode': current_mode,
+        'trend_month': trend_month
+    }
+    return render(request, 'data_analysis.html', context)
+def house_detail(request):
+    """房价详情页 - 支持分页、筛选"""
+    # 未登录跳转登录页
+    if not request.user.is_authenticated:
+        return redirect('/login/')
+
+    # 1. 获取筛选参数
+    selected_city = request.GET.get('city', 'all')
+    selected_house_type = request.GET.get('house_type', 'all')
+
+    # 2. 基础查询（只取有效数据）
+    queryset = HousePriceData.objects.filter(
+        area_size__gt=0,
+        total_price__gt=0,
+        create_time__isnull=False
+    ).annotate(
+        # 计算单价（元/㎡）
+        unit_price=ExpressionWrapper(
+            (F('total_price') * 10000) / F('area_size'),
+            output_field=DecimalField(max_digits=12, decimal_places=2)
+        )
+    ).order_by('-create_time')  # 按录入时间倒序
+
+    # 3. 应用筛选条件
+    if selected_city != 'all' and selected_city.strip():
+        queryset = queryset.filter(city=selected_city.strip())
+    if selected_house_type != 'all' and selected_house_type.strip():
+        queryset = queryset.filter(house_type=selected_house_type.strip())
+
+    # 4. 分页处理（每页10条）
+    paginator = Paginator(queryset, 10)
+    page = request.GET.get('page', 1)
+    try:
+        house_list = paginator.page(page)
+    except PageNotAnInteger:
+        house_list = paginator.page(1)
+    except EmptyPage:
+        house_list = paginator.page(paginator.num_pages)
+
+    # 5. 获取筛选下拉框数据（城市/户型去重）
+    city_list = list(
+        HousePriceData.objects.values_list('city', flat=True)
+        .distinct()
+        .order_by('city')
+    )
+    house_type_list = list(
+        HousePriceData.objects.values_list('house_type', flat=True)
+        .distinct()
+        .order_by('house_type')
+    )
+
+    # 6. 渲染页面
+    context = {
+        'user': request.user,
+        'house_list': house_list,
+        'city_list': city_list,
+        'house_type_list': house_type_list,
+        'selected_city': selected_city,
+        'selected_house_type': selected_house_type
+    }
+    return render(request, 'house_detail.html', context)
 
 #模板下载
 @login_required
@@ -617,10 +970,6 @@ def user_login(request):
             return render(request, 'login.html')
     else :
         return render(request, 'login.html')
-def index(request):
-    if not request.user.is_authenticated:
-        return redirect('/login/')
-    return render(request, 'index.html',{'user':request.user})
 def user_logout(request):
     logout(request)
     return redirect('/login/')

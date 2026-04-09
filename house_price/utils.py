@@ -1,5 +1,9 @@
 import re
 
+function = 'LPAD'  # MySQL原生函数名
+arity = 3  # 3个参数：字段/值、长度、填充字符
+
+
 def extract_number(text):
     """从字符串中提取数字（支持小数）"""
     if not text:
