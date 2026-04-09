@@ -923,14 +923,6 @@ def admin_user_manage(request):
     return render(request, 'admin_user_manage.html', {'user': request.user, 'users': users})
 
 
-# 3. 可视化配置页面（基础框架）
-def admin_visual_config(request):
-    # 权限验证
-    if not request.user.is_authenticated or request.user.role != 2:
-        messages.error(request, "仅管理员可访问！")
-        return redirect('/login/')
-    # 后续添加可视化配置逻辑
-    return render(request, 'admin_visual_config.html', {'user': request.user})
 # 注册
 def register(request):
     if request.method == "POST":

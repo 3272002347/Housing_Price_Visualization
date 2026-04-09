@@ -19,7 +19,6 @@ urlpatterns = [
     path("admin_user_manage/", views.admin_user_manage, name="admin_user_manage"),  # 用户管理
     path("admin_user_edit_ajax/", views.admin_user_edit_ajax, name="admin_user_edit_ajax"),
     path("admin_data_manage/", views.admin_data_manage, name="admin_data_manage"),  # 数据管理
-    path("admin_visual_config/", views.admin_visual_config, name="admin_visual_config"),  # 可视化配置
     path("admin_user_toggle_status_ajax/", views.admin_user_toggle_status_ajax, name="admin_user_toggle_status_ajax"),
     path("admin_user_delete_ajax/", views.admin_user_delete_ajax, name="admin_user_delete_ajax"),  # 删除路由
     path("admin_user_add_ajax/", views.admin_user_add_ajax, name="admin_user_add_ajax"),  # 管理员路由
