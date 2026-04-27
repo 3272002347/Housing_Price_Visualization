@@ -159,41 +159,88 @@
             {% endif %}
         </div>
 
-        <!-- 分页控件 -->
-        {% if house_list.paginator.num_pages > 1 %}
-            <nav aria-label="Page navigation">
-                <ul class="pagination">
-                    <!-- 上一页 -->
-                    {% if house_list.has_previous %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ house_list.previous_page_number }}&city={{ selected_city }}&house_type={{ selected_house_type }}">上一页</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled"><a class="page-link">上一页</a></li>
-                    {% endif %}
+       <!-- 分页控件 -->
+{% if house_list.paginator.num_pages > 1 %}
+<nav aria-label="Page navigation">
+    <ul class="pagination" style="display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; margin-top: 20px;">
 
-                    <!-- 页码 -->
-                    {% for num in house_list.paginator.page_range %}
-                        {% if num == house_list.number %}
-                            <li class="page-item active"><a class="page-link">{{ num }}</a></li>
-                        {% elif num > house_list.number|add:"-3" and num < house_list.number|add:"3" %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ num }}&city={{ selected_city }}&house_type={{ selected_house_type }}">{{ num }}</a>
-                            </li>
-                        {% endif %}
-                    {% endfor %}
+        {% with request.GET.city as selected_city %}
+        {% with request.GET.house_type as selected_house_type %}
+        {% with current=house_list.number total=house_list.paginator.num_pages %}
 
-                    <!-- 下一页 -->
-                    {% if house_list.has_next %}
-                        <li class="page-item">
-                            <a class="page-link" href="?page={{ house_list.next_page_number }}&city={{ selected_city }}&house_type={{ selected_house_type }}">下一页</a>
-                        </li>
-                    {% else %}
-                        <li class="page-item disabled"><a class="page-link">下一页</a></li>
-                    {% endif %}
-                </ul>
-            </nav>
+        <!-- 上一页 -->
+        {% if house_list.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ house_list.previous_page_number }}{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">上一页</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><a class="page-link">上一页</a></li>
         {% endif %}
+
+        {% if total <= 5 %}
+            {% for num in house_list.paginator.page_range %}
+                {% if num == current %}
+                    <li class="page-item active"><a class="page-link">{{ num }}</a></li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ num }}{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">{{ num }}</a>
+                    </li>
+                {% endif %}
+            {% endfor %}
+        {% else %}
+            <!-- 第一页：仅在当前页 > 1 时显示 -->
+            {% if current > 1 %}
+                <li class="page-item">
+                    <a class="page-link" href="?page=1{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">1</a>
+                </li>
+            {% endif %}
+
+            <!-- 省略号：当前页 > 3 时显示 -->
+            {% if current > 3 %}
+                <li class="page-item disabled"><a class="page-link">...</a></li>
+            {% endif %}
+
+            <!-- 中间页码：当前页前后各2页 -->
+            {% for num in house_list.paginator.page_range %}
+                {% if num >= current|add:"-2" and num <= current|add:"2" %}
+                    {% if num == current %}
+                        <li class="page-item active"><a class="page-link">{{ num }}</a></li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">{{ num }}</a>
+                        </li>
+                    {% endif %}
+                {% endif %}
+            {% endfor %}
+
+            <!-- 省略号：当前页 < 总页数-2 时显示 -->
+            {% if current < total|add:"-2" %}
+                <li class="page-item disabled"><a class="page-link">...</a></li>
+            {% endif %}
+
+            <!-- 最后一页：仅在当前页 < 总页数 时显示 -->
+            {% if current < total %}
+                <li class="page-item">
+                    <a class="page-link" href="?page={{ total }}{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">{{ total }}</a>
+                </li>
+            {% endif %}
+        {% endif %}
+
+        <!-- 下一页 -->
+        {% if house_list.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ house_list.next_page_number }}{% if selected_city %}&city={{ selected_city }}{% endif %}{% if selected_house_type %}&house_type={{ selected_house_type }}{% endif %}">下一页</a>
+            </li>
+        {% else %}
+            <li class="page-item disabled"><a class="page-link">下一页</a></li>
+        {% endif %}
+
+        {% endwith %}
+        {% endwith %}
+        {% endwith %}
+    </ul>
+</nav>
+{% endif %}
     </div>
 
     <!-- 本地静态资源 -->

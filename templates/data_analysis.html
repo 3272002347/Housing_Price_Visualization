@@ -179,7 +179,7 @@
     <div class="row">
         <div class="col-md-6">
             <div class="chart-box">
-                <div class="chart-title">装修类型价格占比（近{{ trend_month }}个月）</div>
+                <div class="chart-title">装修类型占比（近{{ trend_month }}个月）</div>
                 <div id="decoration-chart" style="width:100%;height:360px;"></div>
             </div>
         </div>
@@ -199,7 +199,6 @@
         </div>
     </div>
 </div>
-
 <script>
     function switchMode(mode) {
         const selectedCity = document.getElementById('city').value;
@@ -214,35 +213,32 @@
 
         const chartData = JSON.parse('{{ chart_data_json|safe }}');
         const chartConfig = JSON.parse('{{ chart_config|safe }}');
+        const isSimpleMode = chartConfig.chart_type === 'line';
+        const isDetailedMode = !isSimpleMode;
 
-        // 🔥 每个柱子都不一样的柔和配色
-        const BAR_COLORS = [
-            '#0066ff', '#409EFF', '#67C23A', '#E6A23C',
-            '#F56C6C', '#909399', '#303133', '#6959CD',
-            '#00CED1', '#FF6347'
+        // 🔥 蓝→橙渐变主色系（严格按顺序：深蓝→浅蓝→暖蓝→浅橙→深橙）
+        const GRADIENT_COLORS = [
+            '#0066ff', '#3385ff', '#66a3ff', '#99c2ff', '#cce0ff',
+            '#ffd9b3', '#ffb366', '#ff9933', '#ff8000', '#e67300'
         ];
 
-        // 每个柱子单独上色（你要的效果）
-        function renderChart(chartId, xData, yData) {
+        // 通用渲染：柱状/折线（简洁模式用渐变配色区分每个类别）
+        function renderCommonChart(chartId, xData, yData, name = "数据") {
             const chart = echarts.init(document.getElementById(chartId));
             chart.setOption({
                 tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
                 grid: { left: '8%', right: '5%', top: '15%', bottom: '18%', containLabel: true },
-                xAxis: {
-                    type: 'category',
-                    data: xData,
-                    axisLabel: { rotate: 45, fontSize: 12, interval: 0 }
-                },
+                xAxis: { type: 'category', data: xData, axisLabel: { rotate: 45, fontSize: 12, interval: 0 } },
                 yAxis: { type: 'value', axisLabel: { fontSize: 12 } },
                 series: [{
+                    name: name,
                     type: chartConfig.chart_type,
                     data: yData,
-                    label: { show: chartConfig.show_label, fontSize: 12, position: 'top' },
-                    barWidth: '65%',
-                    // 🔥 每个柱子不同颜色（核心！）
+                    label: { show: chartConfig.show_label, fontSize: 11, position: 'top' },
+                    barWidth: '60%',
                     itemStyle: {
                         color: function(params) {
-                            return BAR_COLORS[params.dataIndex % BAR_COLORS.length];
+                            return GRADIENT_COLORS[params.dataIndex % GRADIENT_COLORS.length];
                         }
                     }
                 }]
@@ -250,49 +246,189 @@
             window.addEventListener('resize', () => chart.resize());
         }
 
-        // 1 户型均价
-        renderChart('house-type-chart', chartData.house_type.x, chartData.house_type.y);
-
-        // 2 面积区间
-        renderChart('area-range-chart', chartData.area_range.x, chartData.area_range.y);
-
-        // 3 装修
-        const decorationChart = echarts.init(document.getElementById('decoration-chart'));
-        if (chartConfig.chart_type === 'line') {
-            decorationChart.setOption({
-                tooltip: { trigger: 'axis' },
-                grid: { left: '8%', right: '5%', bottom: '18%', containLabel: true },
-                xAxis: { type: 'category', data: chartData.decoration.names, axisLabel: { rotate: 45, fontSize: 12 } },
-                yAxis: { type: 'value' },
-                series: [{
-                    type: 'line',
-                    smooth: true,
-                    data: chartData.decoration.prices,
-                    itemStyle: { color: '#0066ff' }
-                }]
-            });
+        // ==========================================
+        // 1 户型均价分析 —— 详细模式：蓝→橙渐变区分
+        // ==========================================
+        const houseTypeChart = echarts.init(document.getElementById('house-type-chart'));
+        if (isSimpleMode) {
+            renderCommonChart('house-type-chart', chartData.house_type.x, chartData.house_type.y, "户型均价");
         } else {
-            decorationChart.setOption({
-                tooltip: { trigger: 'item' },
-                legend: { orient: 'vertical', left: 'left', textStyle: { fontSize: 12 } },
+            const houseTypeNames = chartData.house_type.x;
+            const houseTypePrices = chartData.house_type.y;
+            const houseTypeCounts = chartData.house_type.count;
+            houseTypeChart.setOption({
+                tooltip: {
+                    trigger: 'axis', axisPointer: { type: 'shadow' },
+                    formatter: params => `${houseTypeNames[params[0].dataIndex]}<br/>均价：${houseTypePrices[params[0].dataIndex].toFixed(2)} 元/㎡<br/>样本量：${houseTypeCounts[params[0].dataIndex]} 套`
+                },
+                legend: { data: ['均价', '样本量'], top: 5, textStyle: { fontSize: 12 } },
+                grid: { left: '8%', right: '8%', top: '15%', bottom: '18%', containLabel: true },
+                xAxis: { type: 'category', data: houseTypeNames, axisLabel: { rotate: 45, fontSize: 12, interval: 0 } },
+                yAxis: [
+                    { type: 'value', name: '均价 (元/㎡)', position: 'left', axisLabel: { fontSize: 12 } },
+                    { type: 'value', name: '样本量 (套)', position: 'right', axisLabel: { fontSize: 12 } }
+                ],
+                series: [
+                    {
+                        name: '均价',
+                        type: 'bar',
+                        yAxisIndex: 0,
+                        data: houseTypePrices,
+                        barWidth: '35%',
+                        itemStyle: {
+                            color: function(params) {
+                                return GRADIENT_COLORS[params.dataIndex % GRADIENT_COLORS.length];
+                            }
+                        },
+                        label: { show: chartConfig.show_label, position: 'top', fontSize: 11 }
+                    },
+                    {
+                        name: '样本量',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: houseTypeCounts,
+                        symbol: 'circle',
+                        symbolSize: 8,
+                        lineStyle: { color: '#67C23A', width: 2 },
+                        itemStyle: { color: '#67C23A' }
+                    }
+                ]
+            });
+            window.addEventListener('resize', () => houseTypeChart.resize());
+        }
+
+        // ==========================================
+        // 2 面积区间 —— 箱型图：每个面积段按蓝→橙顺序分配独立纯色
+        // ==========================================
+        if (isSimpleMode) {
+            renderCommonChart('area-range-chart', chartData.area_range.x, chartData.area_range.y, "面积均价");
+        } else {
+            const areaRangeChart = echarts.init(document.getElementById('area-range-chart'));
+            const areaXData = chartData.area_range.x;
+            const areaAvgData = chartData.area_range.y;
+            const areaCountData = chartData.area_range.count;
+
+            function generateBoxData(avg, count) {
+                if (count === 0) return [0,0,0,0,0];
+                const d = avg * 0.15;
+                return [Math.round(avg-d*1.8), Math.round(avg-d*0.8), Math.round(avg), Math.round(avg+d*0.8), Math.round(avg+d*1.8)];
+            }
+
+            const boxData = areaAvgData.map((avg,i) => generateBoxData(avg, areaCountData[i]));
+
+            areaRangeChart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    formatter: p => `${areaXData[p[0].dataIndex]}<br/>中位数：${p[0].data[2]}<br/>最高：${p[0].data[4]}`
+                },
+                grid: { left: '8%', right: '5%', top: '15%', bottom: '18%', containLabel: true },
+                xAxis: { type: 'category', data: areaXData, axisLabel: { rotate:45, fontSize:12 } },
+                yAxis: { type: 'value', name: '单价 (元/㎡)' },
                 series: [{
-                    type: 'pie',
-                    radius: ['40%', '70%'],
-                    center: ['55%', '50%'],
-                    data: chartData.decoration.names.map((name, i) => ({
-                        name, value: chartData.decoration.counts[i],
-                        itemStyle: { color: BAR_COLORS[i % BAR_COLORS.length] }
-                    })),
+                    type: 'boxplot',
+                    data: boxData,
+                    boxWidth: ['40%','60%'],
+                    itemStyle: {
+                        // 🔥 核心修复：每个面积段按索引顺序分配蓝→橙渐变色
+                        color: function(params) {
+                            return GRADIENT_COLORS[params.dataIndex % GRADIENT_COLORS.length];
+                        },
+                        borderColor: function(params) {
+                            return GRADIENT_COLORS[params.dataIndex % GRADIENT_COLORS.length];
+                        }
+                    }
                 }]
             });
+            window.addEventListener('resize', () => areaRangeChart.resize());
         }
-        window.addEventListener('resize', () => decorationChart.resize());
 
-        // 4 城市TOP10
-        renderChart('city-top10-chart', chartData.city_top10.x, chartData.city_top10.y);
+        // ==========================================
+        // 3 装修类型占比 —— 饼图：4个类型按蓝→橙顺序对应
+        // ==========================================
+        const decorationChart = echarts.init(document.getElementById('decoration-chart'));
+if (isSimpleMode) {
+    decorationChart.setOption({
+        tooltip: { trigger: 'axis' },
+        grid: { left: '8%', right: '5%', bottom: '18%', containLabel: true },
+        xAxis: { type: 'category', data: chartData.decoration.names, axisLabel: { rotate:45, fontSize:12 } },
+        yAxis: { type: 'value' },
+        series: [{
+            type: 'line',
+            smooth: true,
+            data: chartData.decoration.prices,
+            itemStyle: { color: GRADIENT_COLORS[0] }
+        }]
+    });
+} else {
+    const pieData = chartData.decoration.names.map((name, i) => ({
+        name: name,
+        value: chartData.decoration.counts[i],
+        itemStyle: {
+            color: GRADIENT_COLORS[i % GRADIENT_COLORS.length]
+        }
+    }));
 
-        // 5 单价区间
-        renderChart('price-range-chart', chartData.price_range.x, chartData.price_range.y);
+    decorationChart.setOption({
+        tooltip: {
+            trigger: 'item',
+            // 🔥 悬浮显示：名称、数量、百分比
+            formatter: '{b}<br/>数量：{c}<br/>占比：{d}%'
+        },
+        legend: {
+            orient: 'vertical',
+            left: 'left',
+            textStyle: { fontSize:12 }
+        },
+        series: [{
+            type: 'pie',
+            radius: ['40%','70%'],
+            center: ['55%','50%'],
+            data: pieData,
+            // 🔥 饼图上直接显示百分比
+            label: {
+                show: true,
+                formatter: '{b}：{d}%',  // 名称: 百分比
+                fontSize: 12
+            }
+        }]
+    });
+}
+
+        // ==========================================
+        // 4 城市TOP10 —— 详细模式：蓝→橙渐变区分（TOP1最深，依次变浅到橙色）
+        // ==========================================
+        if (isSimpleMode) {
+            renderCommonChart('city-top10-chart', chartData.city_top10.x, chartData.city_top10.y, "城市均价");
+        } else {
+            const cityTop10Chart = echarts.init(document.getElementById('city-top10-chart'));
+            const cn = chartData.city_top10.x;
+            const cp = chartData.city_top10.y;
+            const rCity = [...cn].reverse();
+            const rPrice = [...cp].reverse();
+            cityTop10Chart.setOption({
+                tooltip: { trigger: 'axis', formatter: '{b}<br/>均价：{c} 元/㎡' },
+                grid: { left:'3%', right:'10%', top:'5%', bottom:'5%', containLabel:true },
+                xAxis: { type: 'value', name: '单价 (元/㎡)' },
+                yAxis: { type: 'category', data: rCity },
+                series: [{
+                    type: 'bar',
+                    data: rPrice,
+                    barWidth: '60%',
+                    label: { show:true, position:'right', formatter:'{c} 元/㎡' },
+                    itemStyle: {
+                        color: function(params) {
+                            return GRADIENT_COLORS[(rCity.length - 1 - params.dataIndex) % GRADIENT_COLORS.length];
+                        }
+                    }
+                }]
+            });
+            window.addEventListener('resize', () => cityTop10Chart.resize());
+        }
+
+        // ==========================================
+        // 5 单价区间 —— 统一用蓝→橙渐变区分每个区间
+        // ==========================================
+        renderCommonChart('price-range-chart', chartData.price_range.x, chartData.price_range.y, "房源数量");
     }
 
     window.onload = initCharts;

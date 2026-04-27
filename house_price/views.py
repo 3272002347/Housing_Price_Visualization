@@ -530,6 +530,8 @@ def data_edit_ajax(request):
     return JsonResponse({'success': False, 'message': '请求方式错误'})
 
 
+
+
 #数据上传
 @login_required
 def data_upload_ajax(request):

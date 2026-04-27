@@ -452,35 +452,46 @@
         </table>
 
         <!-- 分页控件 -->
-        <div class="pagination" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; padding: 10px; justify-content: center;">
-            <!-- 上一页 -->
-            {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">上一页</a>
-            {% else %}
-                <span class="page-btn disabled">上一页</span>
-            {% endif %}
+<div class="pagination" style="display: flex; flex-wrap: wrap; gap: 5px; margin-top: 20px; padding: 10px; justify-content: center;">
+    {% with request.GET.keyword as kw %}
+    {% with request.GET.city as ct %}
+    {% with request.GET.decoration as dc %}
+    {% with request.GET.sort as st %}
+    {% with request.GET.dir as dr %}
 
-            <!-- 页码 -->
-            {% for num in page_range %}
-                {% if num == page_obj.number %}
-                    <span class="page-btn active">{{ num }}</span>
-                {% elif num == '...' %}
-                    <span class="page-btn">...</span>
-                {% else %}
-                    <a href="?page={{ num }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">{{ num }}</a>
-                {% endif %}
-            {% endfor %}
+    <!-- 上一页 -->
+    {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if kw %}&keyword={{ kw }}{% endif %}{% if ct %}&city={{ ct }}{% endif %}{% if dc %}&decoration={{ dc }}{% endif %}{% if st %}&sort={{ st }}{% endif %}{% if dr %}&dir={{ dr }}{% endif %}" class="page-btn">上一页</a>
+    {% else %}
+        <span class="page-btn disabled">上一页</span>
+    {% endif %}
 
-            <!-- 下一页 -->
-            {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}&keyword={{ keyword }}&city={{ city }}&decoration={{ decoration }}&sort={{ sort_by }}&dir={{ sort_dir }}" class="page-btn">下一页</a>
-            {% else %}
-                <span class="page-btn disabled">下一页</span>
-            {% endif %}
-             <span class="pagination-info">共 {{ page_obj.paginator.count }} 条，每页 10 条</span>
-        </div>
+    <!-- 页码 -->
+    {% for num in page_range %}
+        {% if num == page_obj.number %}
+            <span class="page-btn active">{{ num }}</span>
+        {% elif num == '...' %}
+            <span class="page-btn">...</span>
+        {% else %}
+            <a href="?page={{ num }}{% if kw %}&keyword={{ kw }}{% endif %}{% if ct %}&city={{ ct }}{% endif %}{% if dc %}&decoration={{ dc }}{% endif %}{% if st %}&sort={{ st }}{% endif %}{% if dr %}&dir={{ dr }}{% endif %}" class="page-btn">{{ num }}</a>
+        {% endif %}
+    {% endfor %}
 
-    </div>
+    <!-- 下一页 -->
+    {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if kw %}&keyword={{ kw }}{% endif %}{% if ct %}&city={{ ct }}{% endif %}{% if dc %}&decoration={{ dc }}{% endif %}{% if st %}&sort={{ st }}{% endif %}{% if dr %}&dir={{ dr }}{% endif %}" class="page-btn">下一页</a>
+    {% else %}
+        <span class="page-btn disabled">下一页</span>
+    {% endif %}
+
+    <span class="pagination-info">共 {{ page_obj.paginator.count }} 条，每页 10 条</span>
+
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+    {% endwith %}
+</div>
 
     <!-- 导入数据弹窗 -->
     <div class="modal-mask" id="uploadModal">
