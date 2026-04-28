@@ -24,6 +24,8 @@ from django.template.loader import render_to_string
 from django.db.models import F, ExpressionWrapper, DecimalField, CharField, Value as V
 from .utils import clean_area, clean_house_age, clean_total_price
 
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.metrics.pairwise import cosine_similarity
 try:
     # Django <4.0 用pytz
     import pytz
@@ -40,7 +42,109 @@ class DecimalEncoder(json.JSONEncoder):
             return float(obj)
         return super().default(obj)
 
+def recommend_similar_houses(request, house_id=None):
+    if not request.user.is_authenticated:
+        return redirect('/login/')
+    current = None
+    similar_list = []
+    # 新增：标识是否为默认推荐（无house_id时为True）
+    is_default_recommend = False
+    if house_id:
+        # 获取当前点击的房源
+        current = get_object_or_404(HousePriceData, id=house_id)
+        houses = HousePriceData.objects.all().values(
+            'id', 'city', 'area', 'house_type', 'area_size',
+            'total_price', 'decoration', 'floor_info', 'orientation'
+        )
+        df = pd.DataFrame(houses)
+        if len(df) < 2:
+            return render(request, 'recommend.html', {
+                'current': current,
+                'similar_list': []
+            })
+        #  特征向量化（分类特征：城市/区域/户型/装修/楼层/朝向）
+        cat_cols = ['city', 'area', 'house_type', 'decoration', 'floor_info', 'orientation']
+        # 处理空值：填充默认值避免编码报错
+        df[cat_cols] = df[cat_cols].fillna('未知')
+        encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
+        cat_features = encoder.fit_transform(df[cat_cols])
+        num_features = df[['area_size', 'total_price']].fillna(0).values
+        feature_matrix = pd.concat([
+            pd.DataFrame(cat_features),
+            pd.DataFrame(num_features)
+        ], axis=1)
+        sim_matrix = cosine_similarity(feature_matrix)
+        idx = df[df['id'] == house_id].index[0]
+        similar_indices = sim_matrix[idx].argsort()[::-1][1:9]  # 取前8个相似房源
+        similar_ids = df.iloc[similar_indices]['id'].tolist()
+        similar_list = HousePriceData.objects.filter(id__in=similar_ids)
+    else:
+        is_default_recommend = True
+        valid_houses = HousePriceData.objects.filter(
+            area_size__gt=0,
+            total_price__gt=0
+        ).annotate(
+            unit_price=ExpressionWrapper(
+                (F('total_price') * 10000) / F('area_size'),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+        if valid_houses.exists():
+            city_house_type_avg = valid_houses.values('city', 'house_type').annotate(
+                avg_unit_price=Avg('unit_price')
+            ).values('city', 'house_type', 'avg_unit_price')
+            avg_price_dict = {}
+            for item in city_house_type_avg:
+                key = (item['city'], item['house_type'])
+                avg_price_dict[key] = item['avg_unit_price'] or 0
 
+            house_score_list = []
+            for house in valid_houses:
+                # 单价得分
+                avg_price = avg_price_dict.get((house.city, house.house_type), 0)
+                unit_price_score = 0
+                if avg_price > 0:
+                    price_ratio = float(house.unit_price) / float(avg_price)
+                    if price_ratio <= 0.8:
+                        unit_price_score = 70
+                    elif price_ratio >= 1.2:
+                        unit_price_score = 0
+                    else:
+                        unit_price_score = 70 - (price_ratio - 0.8) * 175
+                # 房龄得分
+                house_age_score = 0
+                try:
+                    age_num = int(''.join(filter(str.isdigit, str(house.house_age))))
+                    if age_num <= 5:
+                        house_age_score = 15
+                    elif age_num < 10:
+                        house_age_score = 15 - (age_num - 5) * 3
+                except:
+                    pass
+                # 装修得分
+                decoration_score = 0
+                dec = str(house.decoration)
+                if dec == "精装":
+                    decoration_score = 15
+                elif dec == "简装":
+                    decoration_score = 10
+                elif dec == "毛坯":
+                    decoration_score = 5
+
+                total_score = unit_price_score + house_age_score + decoration_score
+                house_score_list.append({"house": house, "score": total_score})
+
+            # 按性价比倒序，固定取前8条
+            house_score_list.sort(key=lambda x: x["score"], reverse=True)
+            similar_list = [i["house"] for i in house_score_list[:8]]
+
+    context = {
+        "user": request.user,
+        "current": current,
+        "similar_list": similar_list,
+        "is_default_recommend": is_default_recommend
+    }
+    return render(request, "recommend.html", context)
 def index(request):
     """首页 - 核心概览+趋势监控"""
     if not request.user.is_authenticated:
@@ -320,6 +424,7 @@ def house_detail(request):
     selected_house_type = request.GET.get('house_type', 'all')
 
     # 2. 基础查询（只取有效数据）
+    from django.db.models.functions import Round
     queryset = HousePriceData.objects.filter(
         area_size__gt=0,
         total_price__gt=0,
@@ -327,7 +432,7 @@ def house_detail(request):
     ).annotate(
         # 计算单价（元/㎡）
         unit_price=ExpressionWrapper(
-            (F('total_price') * 10000) / F('area_size'),
+            Round((F('total_price') * 10000) / F('area_size'),2),
             output_field=DecimalField(max_digits=12, decimal_places=2)
         )
     ).order_by('-create_time')  # 按录入时间倒序

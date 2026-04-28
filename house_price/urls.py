@@ -12,8 +12,8 @@ urlpatterns = [
     path('house-detail/', views.house_detail, name='house_detail'),
     # 数据分析页
     path('data-analysis/', views.data_analysis, name='data_analysis'),
-
-
+    path('recommend/', views.recommend_similar_houses, name='recommend_default'),
+    path('recommend/<int:house_id>/', views.recommend_similar_houses, name='recommend'),
     # 后台管理路由
     path("admin_index/", views.admin_index, name="admin_index"),          # 后台首页
     path("admin_user_manage/", views.admin_user_manage, name="admin_user_manage"),  # 用户管理

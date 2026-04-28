@@ -36,7 +36,13 @@
         border-radius: 4px;                 /* 小圆角 */
         padding: 6px 12px !important;       /* 内边距 */
     }
-
+.card-link {
+        text-decoration: none;  /* 去掉下划线 */
+        color: #333;            /* 文字颜色和原页面一致 */
+    }
+    .card-link:hover .house-card {
+        background-color: #f5f5f5; /* 鼠标悬浮时卡片变浅（可选，提升体验） */
+    }
     .text-white.me-3 {
         font-size: 16px;
         color: #fff !important;
@@ -88,7 +94,10 @@
           <a class="nav-link" href="{% url 'data_analysis' %}">数据分析</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link active" href="{% url 'house_detail' %}">房价详情</a>
+          <a class="nav-link active" href="{% url 'recommend_default' %}">房价详情</a>
+        </li>
+          <li class="nav-item">
+          <a class="nav-link" href="{% url 'recommend_default' %}">房源推荐</a>
         </li>
       </ul>
       <span class="text-white me-3">欢迎，{{ user.username }}</span>
@@ -126,6 +135,7 @@
         <div class="house-list">
             {% if house_list %}
                 {% for house in house_list %}
+                <a href="{% url 'recommend' house.id %}" class="card-link">
                     <div class="house-card row">
                         <div class="col-md-3">
                             <h6>{{ house.title }}</h6>
@@ -151,6 +161,7 @@
                             <p class="text-muted small">录入时间：{{ house.create_time|date:"Y-m-d H:i" }}</p>
                         </div>
                     </div>
+                </a>
                 {% endfor %}
             {% else %}
                 <div class="alert alert-warning text-center" role="alert">
