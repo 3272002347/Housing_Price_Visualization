@@ -3,10 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>相似房源推荐 - 房价可视化平台</title>
-    <!-- 本地静态资源（和house_detail保持一致） -->
     <link href="/static/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        /* 统一导航栏样式（和房价详情页完全一致） */
         .navbar {
             background-color: #0066ff !important;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
@@ -27,8 +25,6 @@
         .nav-item .nav-link:hover {
             opacity: 0.85;
         }
-
-        /* 🔥 核心：当前页面（房源推荐）导航高亮样式 */
         .nav-link.active {
             font-weight: bold !important;
             color: #ffffff !important;
@@ -36,17 +32,6 @@
             border-radius: 4px;
             padding: 6px 12px !important;
         }
-
-        /* 卡片链接样式（和house_detail一致） */
-        .card-link {
-            text-decoration: none;
-            color: #333;
-        }
-        .card-link:hover .house-card {
-            background-color: #f5f5f5;
-        }
-
-        /* 通用样式（复用house_detail） */
         .text-white.me-3 {
             font-size: 16px;
             color: #fff !important;
@@ -55,12 +40,21 @@
             font-size: 14px;
             padding: 4px 12px;
         }
+        .card-link {
+            text-decoration: none;
+            color: #333;
+            display: block;
+        }
+        .card-link:hover .house-card {
+            background-color: #f5f5f5;
+        }
         .house-card {
             border: 1px solid #eee;
             border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
             transition: box-shadow 0.3s;
+            cursor: pointer;
         }
         .house-card:hover {
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
@@ -74,7 +68,7 @@
             font-weight: bold;
         }
         .current-house {
-            border-left: 5px solid #0066ff; /* 适配导航栏主色 */
+            border-left: 5px solid #0066ff;
             background: #f8f9fa;
             border-radius: 8px;
             padding: 20px;
@@ -84,142 +78,188 @@
         .container {
             max-width: 1200px;
         }
+        .filter-bar {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        #loadingMask {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .loading-text {
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
     </style>
 </head>
 <body>
-    <!-- 导航栏（和house_detail一致，新增「房源推荐」项并高亮） -->
-    <nav class="navbar navbar-expand-lg navbar-dark">
-        <div class="container">
-            <a class="navbar-brand" href="{% url 'index' %}">房价可视化平台</a>
-            <div class="collapse navbar-collapse">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'index' %}">首页</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'data_analysis' %}">数据分析</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{% url 'house_detail' %}">房价详情</a>
-                    </li>
-                    <!-- 新增：房源推荐导航项，当前页面高亮 -->
-                    <li class="nav-item">
-                        <a class="nav-link active" href="{% url 'recommend_default' %}">房源推荐</a>
-                    </li>
-                </ul>
-                <span class="text-white me-3">欢迎，{{ user.username }}</span>
-                <a href="/logout/" class="btn btn-light">退出登录</a>
+
+<div id="loadingMask">
+    <div class="spinner-border text-light" style="width: 3rem; height: 3rem;" role="status"></div>
+    <div class="loading-text">正在加载相似房源，请耐心等待...</div>
+</div>
+
+<nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'index' %}">房价可视化平台</a>
+        <div class="collapse navbar-collapse">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'index' %}">首页</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'data_analysis' %}">数据分析</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'house_detail' %}">房价详情</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="{% url 'recommend_default' %}">房源推荐</a>
+                </li>
+            </ul>
+            <span class="text-white me-3">欢迎，{{ user.username }}</span>
+            <a href="/logout/" class="btn btn-light">退出登录</a>
+        </div>
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <h4 class="mb-4">相似房源推荐</h4>
+
+    <!-- 关键：调整了筛选栏布局，让按钮和下拉框完全对齐 -->
+    {% if is_default_recommend %}
+    <div class="filter-bar">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">选择城市</label>
+                <select name="city" class="form-select" onchange="this.form.submit()">
+                    {% for city in cities %}
+                    <option value="{{ city }}" {% if selected_city == city %}selected{% endif %}>{{ city }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <button class="btn btn-primary w-100">筛选该城市优质房源</button>
+            </div>
+        </form>
+    </div>
+    {% endif %}
+
+    {% if current %}
+    <div class="current-house">
+        <h5 class="mb-3">当前房源信息</h5>
+        <div class="mb-3">
+            <h6><strong>标题：</strong> {{ current.title|default:"暂无标题" }}</h6>
+        </div>
+        <div class="row">
+            <div class="col-md-2">
+                <p><strong>城市</strong></p>
+                <p>{{ current.city|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2">
+                <p><strong>区域</strong></p>
+                <p>{{ current.area|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2">
+                <p><strong>户型</strong></p>
+                <p>{{ current.house_type|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2">
+                <p><strong>面积</strong></p>
+                <p>{{ current.area_size|default:"未知" }} ㎡</p>
+            </div>
+            <div class="col-md-2">
+                <p><strong>总价</strong></p>
+                <p><span class="price-tag">{{ current.total_price|default:"未知" }} 万元</span></p>
+            </div>
+            <div class="col-md-2">
+                <p><strong>单价</strong></p>
+                <p><span class="unit-price-tag">{{ current.unit_price|default:"未知" }} 元/㎡</span></p>
+            </div>
+            <div class="col-md-2 mt-3">
+                <p><strong>装修</strong></p>
+                <p>{{ current.decoration|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2 mt-3">
+                <p><strong>楼层</strong></p>
+                <p>{{ current.floor_info|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2 mt-3">
+                <p><strong>朝向</strong></p>
+                <p>{{ current.orientation|default:"未知" }}</p>
+            </div>
+            <div class="col-md-2 mt-3">
+                <p><strong>房龄</strong></p>
+                <p>{{ current.house_age|default:"未知" }} 年</p>
             </div>
         </div>
-    </nav>
-
-    <div class="container mt-4">
-        <!-- 页面标题（和整体风格统一） -->
-        <h4 class="mb-4">相似房源推荐</h4>
-{% if current %}
-<div class="current-house">
-    <h5 class="mb-3">当前房源信息</h5>
-    <div class="row">
-        <div class="col-md-2">
-            <p><strong>城市</strong></p>
-            <p>{{ current.city|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2">
-            <p><strong>区域</strong></p>
-            <p>{{ current.area|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2">
-            <p><strong>户型</strong></p>
-            <p>{{ current.house_type|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2">
-            <p><strong>面积</strong></p>
-            <p>{{ current.area_size|default:"未知" }} ㎡</p>
-        </div>
-        <div class="col-md-2">
-            <p><strong>总价</strong></p>
-            <p><span class="price-tag">{{ current.total_price|default:"未知" }} 万元</span></p>
-        </div>
-        <div class="col-md-2">
-            <p><strong>单价</strong></p>
-            <p><span class="unit-price-tag">{{ current.unit_price|default:"未知" }} 元/㎡</span></p>
-        </div>
-        <div class="col-md-2 mt-3">
-            <p><strong>装修</strong></p>
-            <p>{{ current.decoration|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2 mt-3">
-            <p><strong>楼层</strong></p>
-            <p>{{ current.floor_info|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2 mt-3">
-            <p><strong>朝向</strong></p>
-            <p>{{ current.orientation|default:"未知" }}</p>
-        </div>
-        <div class="col-md-2 mt-3">
-            <p><strong>房龄</strong></p>
-            <p>{{ current.house_age|default:"未知" }} 年</p>
-        </div>
     </div>
-</div>
-{% else %}
-<div class="current-house alert alert-info">
-    <h5 class="mb-2">📌 默认推荐 · 高性价比房源</h5>
-    <p class="mb-1">您从导航栏进入房源推荐页，系统自动为您筛选全网性价比最优的 8 套房源。</p>
-    <p class="mb-0">💡 想要精准相似推荐？请前往
-        <a href="{% url 'house_detail' %}" class="text-primary fw-bold">房价详情</a>，
-        点击任意房源卡片即可查看该房源专属相似推荐。
-    </p>
-</div>
-{% endif %}
+    {% else %}
+    <div class="alert alert-info">
+        <h5 class="mb-2">📌 {{ selected_city }} · 高性价比房源推荐</h5>
+        <p class="mb-1">系统已为您筛选该城市性价比最优的8套房源。</p>
+        <p class="mb-0">💡 如需精准相似推荐，请前往 <a href="{% url 'house_detail' %}" class="text-primary fw-bold">房价详情</a>，点击房源卡片查看专属推荐。</p>
+    </div>
+    {% endif %}
 
-<!-- 下方标题统一 -->
-<h5 class="mb-3">推荐房源（共8套）</h5>
-        <div class="house-list">
-            {% if similar_list %}
-                {% for item in similar_list %}
-                <a href="{% url 'recommend' item.id %}" class="card-link">
-                    <div class="house-card row">
-                        <div class="col-md-3">
-                            <h6>{{ item.title|default:"未知" }}</h6>
-                            <p class="text-muted">
-                                {{ item.city|default:"未知" }} · {{ item.area|default:"未知" }}
-                            </p>
-                        </div>
-                        <div class="col-md-2">
-                            <p>户型：{{ item.house_type|default:"未知" }}</p>
-                            <p>面积：{{ item.area_size|default:"未知" }} ㎡</p>
-                        </div>
-                        <div class="col-md-2">
-                            <p>朝向：{{ item.orientation|default:"未知" }}</p>
-                            <p>装修：{{ item.decoration|default:"未知" }}</p>
-                        </div>
-                        <div class="col-md-2">
-                            <p>楼层：{{ item.floor_info|default:"未知" }}</p>
-                            <p>房龄：{{ item.house_age|default:"未知" }} 年</p>
-                        </div>
-                        <div class="col-md-3">
-                            <p>总价：<span class="price-tag">{{ item.total_price|default:"未知" }} 万元</span></p>
-                            <p>单价：<span class="unit-price-tag">{{ item.unit_price|default:"未知" }} 元/㎡</span></p>
-                            <p class="text-muted small">录入时间：{{ item.create_time|date:"Y-m-d H:i"|default:"未知" }}</p>
-                        </div>
+    <h5 class="mb-3">推荐房源（共8套）</h5>
+    <div class="house-list">
+        {% if similar_list %}
+            {% for item in similar_list %}
+            <a href="{% url 'recommend' item.id %}" class="card-link" onclick="showLoading()">
+                <div class="house-card row">
+                    <div class="col-md-3">
+                        <h6>{{ item.title|default:"未知" }}</h6>
+                        <p class="text-muted">
+                            {{ item.city|default:"未知" }} · {{ item.area|default:"未知" }}
+                        </p>
                     </div>
-                </a>
-                {% endfor %}
-            {% else %}
-                <div class="alert alert-warning text-center" role="alert">
-                    暂无符合条件的相似房源
+                    <div class="col-md-2">
+                        <p>户型：{{ item.house_type|default:"未知" }}</p>
+                        <p>面积：{{ item.area_size|default:"未知" }} ㎡</p>
+                    </div>
+                    <div class="col-md-2">
+                        <p>朝向：{{ item.orientation|default:"未知" }}</p>
+                        <p>装修：{{ item.decoration|default:"未知" }}</p>
+                    </div>
+                    <div class="col-md-2">
+                        <p>楼层：{{ item.floor_info|default:"未知" }}</p>
+                        <p>房龄：{{ item.house_age|default:"未知" }}</p>
+                    </div>
+                    <div class="col-md-3">
+                        <p>总价：<span class="price-tag">{{ item.total_price|default:"未知" }} 万元</span></p>
+                        <p>单价：<span class="unit-price-tag">{{ item.unit_price|default:"未知" }} 元/㎡</span></p>
+                        <p class="text-muted small">录入时间：{{ item.create_time|date:"Y-m-d H:i"|default:"未知" }}</p>
+                    </div>
                 </div>
-            {% endif %}
-        </div>
-
-        <!-- 返回按钮（适配整体样式） -->
-        <div class="text-center mt-4 mb-5">
-            <a href="javascript:history.back()" class="btn btn-primary">返回上一页</a>
-        </div>
+            </a>
+            {% endfor %}
+        {% else %}
+            <div class="alert alert-warning text-center">暂无符合条件的房源</div>
+        {% endif %}
     </div>
 
-    <!-- 本地静态资源（和house_detail保持一致） -->
-    <script src="/static/js/bootstrap.bundle.min.js"></script>
+</div>
+
+<script src="/static/js/bootstrap.bundle.min.js"></script>
+<script>
+    function showLoading() {
+        document.getElementById('loadingMask').style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+</script>
 </body>
 </html>

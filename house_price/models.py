@@ -13,7 +13,6 @@ class HousePriceData(models.Model):
     house_age = models.IntegerField(null=True, blank=True, verbose_name="房龄(年)")
     structure_type = models.CharField(max_length=50, blank=True, default="", verbose_name="建筑结构")
     total_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="总价(万元)")
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, verbose_name="单价(元/平)")
     create_time = models.DateTimeField(auto_now_add=True, verbose_name="录入时间")
     class Meta:
         db_table = "house_price_data"

@@ -41,7 +41,6 @@ class DecimalEncoder(json.JSONEncoder):
             # 把Decimal转为浮点数（前端ECharts需要数值类型）
             return float(obj)
         return super().default(obj)
-
 def recommend_similar_houses(request, house_id=None):
     if not request.user.is_authenticated:
         return redirect('/login/')
@@ -49,23 +48,36 @@ def recommend_similar_houses(request, house_id=None):
     similar_list = []
     # 新增：标识是否为默认推荐（无house_id时为True）
     is_default_recommend = False
+    selected_city = "北京市"  # 默认推荐城市
     if house_id:
-        # 获取当前点击的房源
+        # 1. 获取当前点击的房源，并计算单价
         current = get_object_or_404(HousePriceData, id=house_id)
-        houses = HousePriceData.objects.all().values(
+        # 计算当前房源单价（总价*10000 / 面积，保留2位小数）
+        if current.total_price and current.area_size and current.area_size > 0:
+            current.unit_price = round((current.total_price * 10000) / current.area_size, 2)
+        else:
+            current.unit_price = None
+
+        # ====================== ✅ 核心修改：只获取【同城】房源 ======================
+        # 只获取和当前房源同一个城市的房源，避免跨城推荐
+        houses = HousePriceData.objects.filter(city=current.city).values(
             'id', 'city', 'area', 'house_type', 'area_size',
             'total_price', 'decoration', 'floor_info', 'orientation'
         )
+        # ==========================================================================
+
         df = pd.DataFrame(houses)
+
         if len(df) < 2:
             return render(request, 'recommend.html', {
                 'current': current,
                 'similar_list': []
             })
-        #  特征向量化（分类特征：城市/区域/户型/装修/楼层/朝向）
+
+        # 特征向量化（分类特征：城市/区域/户型/装修/楼层/朝向）
         cat_cols = ['city', 'area', 'house_type', 'decoration', 'floor_info', 'orientation']
-        # 处理空值：填充默认值避免编码报错
         df[cat_cols] = df[cat_cols].fillna('未知')
+
         encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
         cat_features = encoder.fit_transform(df[cat_cols])
         num_features = df[['area_size', 'total_price']].fillna(0).values
@@ -73,14 +85,25 @@ def recommend_similar_houses(request, house_id=None):
             pd.DataFrame(cat_features),
             pd.DataFrame(num_features)
         ], axis=1)
+
         sim_matrix = cosine_similarity(feature_matrix)
         idx = df[df['id'] == house_id].index[0]
-        similar_indices = sim_matrix[idx].argsort()[::-1][1:9]  # 取前8个相似房源
+        # 取前9个（因为要排除自己，所以取前9，再去掉第1个自己）
+        similar_indices = sim_matrix[idx].argsort()[::-1][1:10]
         similar_ids = df.iloc[similar_indices]['id'].tolist()
-        similar_list = HousePriceData.objects.filter(id__in=similar_ids)
+
+        # 2. 从结果中排除当前房源（双重保险）
+        similar_list = HousePriceData.objects.filter(id__in=similar_ids).exclude(id=house_id)
+        # 确保只取8个
+        similar_list = similar_list[:8]
     else:
         is_default_recommend = True
+        # 获取前端选中的城市
+        selected_city = request.GET.get('city', '北京市')
+
+        # 只筛选【当前选中城市】的有效房源
         valid_houses = HousePriceData.objects.filter(
+            city=selected_city,
             area_size__gt=0,
             total_price__gt=0
         ).annotate(
@@ -89,6 +112,7 @@ def recommend_similar_houses(request, house_id=None):
                 output_field=DecimalField(max_digits=12, decimal_places=2)
             )
         )
+
         if valid_houses.exists():
             city_house_type_avg = valid_houses.values('city', 'house_type').annotate(
                 avg_unit_price=Avg('unit_price')
@@ -100,7 +124,6 @@ def recommend_similar_houses(request, house_id=None):
 
             house_score_list = []
             for house in valid_houses:
-                # 单价得分
                 avg_price = avg_price_dict.get((house.city, house.house_type), 0)
                 unit_price_score = 0
                 if avg_price > 0:
@@ -111,7 +134,7 @@ def recommend_similar_houses(request, house_id=None):
                         unit_price_score = 0
                     else:
                         unit_price_score = 70 - (price_ratio - 0.8) * 175
-                # 房龄得分
+
                 house_age_score = 0
                 try:
                     age_num = int(''.join(filter(str.isdigit, str(house.house_age))))
@@ -121,7 +144,7 @@ def recommend_similar_houses(request, house_id=None):
                         house_age_score = 15 - (age_num - 5) * 3
                 except:
                     pass
-                # 装修得分
+
                 decoration_score = 0
                 dec = str(house.decoration)
                 if dec == "精装":
@@ -133,16 +156,26 @@ def recommend_similar_houses(request, house_id=None):
 
                 total_score = unit_price_score + house_age_score + decoration_score
                 house_score_list.append({"house": house, "score": total_score})
-
-            # 按性价比倒序，固定取前8条
+            # 按分数从高到低排序，直接取前8条（不做分组）
             house_score_list.sort(key=lambda x: x["score"], reverse=True)
             similar_list = [i["house"] for i in house_score_list[:8]]
+
+    # 3. 为推荐房源统一计算单价（方便前端显示）
+    for house in similar_list:
+        if house.total_price and house.area_size and house.area_size > 0:
+            house.unit_price = round((house.total_price * 10000) / house.area_size, 2)
+        else:
+            house.unit_price = None
+        # 关键：把所有城市列表传给前端
+    all_cities = HousePriceData.objects.values_list('city', flat=True).distinct().order_by('city')
 
     context = {
         "user": request.user,
         "current": current,
         "similar_list": similar_list,
-        "is_default_recommend": is_default_recommend
+        "is_default_recommend": is_default_recommend,
+        "cities": all_cities,
+        "selected_city": selected_city,
     }
     return render(request, "recommend.html", context)
 def index(request):
@@ -414,65 +447,59 @@ def data_analysis(request):
     }
     return render(request, 'data_analysis.html', context)
 def house_detail(request):
-    """房价详情页 - 支持分页、筛选"""
-    # 未登录跳转登录页
     if not request.user.is_authenticated:
         return redirect('/login/')
 
-    # 1. 获取筛选参数
-    selected_city = request.GET.get('city', 'all')
-    selected_house_type = request.GET.get('house_type', 'all')
+    # 1. 获取筛选和排序参数
+    city = request.GET.get('city', '')
+    house_type = request.GET.get('house_type', '')
+    title_keyword = request.GET.get('title', '')
+    sort_by = request.GET.get('sort', '')
+    order = request.GET.get('order', 'desc')
 
-    # 2. 基础查询（只取有效数据）
-    from django.db.models.functions import Round
-    queryset = HousePriceData.objects.filter(
-        area_size__gt=0,
-        total_price__gt=0,
-        create_time__isnull=False
-    ).annotate(
-        # 计算单价（元/㎡）
+    # 2. 构建基础查询集 + 预计算单价
+    qs = HousePriceData.objects.all().annotate(
         unit_price=ExpressionWrapper(
-            Round((F('total_price') * 10000) / F('area_size'),2),
+            (F('total_price') * 10000) / F('area_size'),
             output_field=DecimalField(max_digits=12, decimal_places=2)
         )
-    ).order_by('-create_time')  # 按录入时间倒序
-
-    # 3. 应用筛选条件
-    if selected_city != 'all' and selected_city.strip():
-        queryset = queryset.filter(city=selected_city.strip())
-    if selected_house_type != 'all' and selected_house_type.strip():
-        queryset = queryset.filter(house_type=selected_house_type.strip())
-
-    # 4. 分页处理（每页10条）
-    paginator = Paginator(queryset, 10)
-    page = request.GET.get('page', 1)
-    try:
-        house_list = paginator.page(page)
-    except PageNotAnInteger:
-        house_list = paginator.page(1)
-    except EmptyPage:
-        house_list = paginator.page(paginator.num_pages)
-
-    # 5. 获取筛选下拉框数据（城市/户型去重）
-    city_list = list(
-        HousePriceData.objects.values_list('city', flat=True)
-        .distinct()
-        .order_by('city')
-    )
-    house_type_list = list(
-        HousePriceData.objects.values_list('house_type', flat=True)
-        .distinct()
-        .order_by('house_type')
     )
 
-    # 6. 渲染页面
+    # 3. 筛选条件
+    if city:
+        qs = qs.filter(city=city)
+    if house_type:
+        qs = qs.filter(house_type=house_type)
+    if title_keyword:
+        qs = qs.filter(title__icontains=title_keyword)
+
+    # 4. 排序逻辑
+    if sort_by in ['unit_price', 'total_price', 'area_size']:
+        if order == 'asc':
+            qs = qs.order_by(sort_by)
+        else:
+            qs = qs.order_by(f'-{sort_by}')
+    else:
+        qs = qs.order_by('-create_time')
+
+    # 5. 分页
+    paginator = Paginator(qs, 10)
+    page_num = request.GET.get('page', 1)
+    page_obj = paginator.get_page(page_num)
+
+    # 6. 获取下拉选项数据
+    cities = HousePriceData.objects.values_list('city', flat=True).distinct()
+    house_types = HousePriceData.objects.values_list('house_type', flat=True).distinct()
+
     context = {
-        'user': request.user,
-        'house_list': house_list,
-        'city_list': city_list,
-        'house_type_list': house_type_list,
-        'selected_city': selected_city,
-        'selected_house_type': selected_house_type
+        'page_obj': page_obj,
+        'cities': cities,
+        'house_types': house_types,
+        'selected_city': city,
+        'selected_house_type': house_type,
+        'title_keyword': title_keyword,
+        'sort_by': sort_by,
+        'order': order,
     }
     return render(request, 'house_detail.html', context)
 
